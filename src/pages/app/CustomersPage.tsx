@@ -10,7 +10,7 @@ import {
     updateCustomer,
 } from '@/services/customers.service'
 
-const optionalEmail = z.string().email('Enter a valid email.').or(z.literal(''))
+const optionalEmail = z.email('Enter a valid email.').or(z.literal(''))
 
 const schema = z.object({
     name: z.string().min(1, 'Name is required.'),

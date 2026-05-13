@@ -35,14 +35,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(nextUser)
     }
 
-    async function logout() {
-        try {
-            await logoutRequest()
-        } finally {
-            clearAuthSession()
-            setToken(null)
-            setUser(null)
-        }
+    function logout() {
+        const logoutRequestPromise = logoutRequest().catch(() => {
+            // Local logout should not depend on the API being reachable.
+        })
+
+        clearAuthSession()
+        setToken(null)
+        setUser(null)
+
+        void logoutRequestPromise
+        return Promise.resolve()
     }
 
     const value = useMemo(

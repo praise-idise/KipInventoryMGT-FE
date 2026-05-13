@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Badge } from '@/components/ui'
 import { CrudResourcePage, type CrudColumn, type CrudField } from '@/components/app/CrudResourcePage'
+import { getStatusBadgeClassName } from '@/lib/status-badge'
 import {
     createSupplier,
     deleteSupplier,
@@ -11,7 +12,7 @@ import {
     updateSupplier,
 } from '@/services/suppliers.service'
 
-const optionalEmail = z.string().email('Enter a valid email.').or(z.literal(''))
+const optionalEmail = z.email('Enter a valid email.').or(z.literal(''))
 
 const schema = z.object({
     name: z.string().min(1, 'Name is required.'),
@@ -41,7 +42,9 @@ const columns: CrudColumn<SupplierItem>[] = [
         header: 'Status',
         truncate: false,
         render: (item) => (
-            <Badge variant={item.isActive ? 'success' : 'muted'}>{item.isActive ? 'Active' : 'Inactive'}</Badge>
+            <Badge variant="outline" className={getStatusBadgeClassName(item.isActive ? 'Active' : 'Inactive')}>
+                {item.isActive ? 'Active' : 'Inactive'}
+            </Badge>
         ),
     },
 ]

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { getStatusBadgeClassName } from '@/lib/status-badge'
 import { fetchWarehouseById } from '@/services/warehouses.service'
 
 export function WarehouseDetailPage() {
@@ -16,12 +17,16 @@ export function WarehouseDetailPage() {
 
     return (
         <main className="space-y-6">
-            <div className="flex items-center justify-between">
-                <Button variant="outline" onClick={() => navigate({ to: '/app/warehouses' })}>
+            <div className="flex items-center justify-end md:justify-between">
+                <Button variant="outline" onClick={() => navigate({ to: '/app/warehouses' })} className="hidden md:inline-flex">
                     <ArrowLeft className="size-4" />
                     Back to Warehouses
                 </Button>
-                {warehouse && <Badge variant={warehouse.isActive ? 'success' : 'muted'}>{warehouse.isActive ? 'Active' : 'Inactive'}</Badge>}
+                {warehouse && (
+                    <Badge variant="outline" className={getStatusBadgeClassName(warehouse.isActive ? 'Active' : 'Inactive')}>
+                        {warehouse.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                )}
             </div>
 
             <Card className="bg-surface/95">

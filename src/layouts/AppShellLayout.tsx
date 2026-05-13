@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { Boxes, LayoutDashboard, LogOut, Menu, Monitor, Moon, Package, Settings, ShoppingCart, Sun, Truck, Users, Warehouse, X } from 'lucide-react'
+import { ArrowRightLeft, Boxes, ClipboardCheck, LayoutDashboard, LogOut, Menu, Monitor, Moon, Package, PackageMinus, PackagePlus, Scale, Settings, ShoppingCart, Sun, Truck, Users, Warehouse, X } from 'lucide-react'
 import { Button } from '@/components/ui'
+import { APP_ROLES, type AppRole } from '@/auth/roles'
 import { useAuth } from '@/hooks/use-auth'
 import { Theme, useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/cn'
@@ -11,6 +12,7 @@ type NavItem = {
     icon: React.ComponentType<{ className?: string }>
     to?: string
     soon?: boolean
+    roles?: AppRole[]
 }
 
 const navItems: NavItem[] = [
@@ -18,11 +20,15 @@ const navItems: NavItem[] = [
     { label: 'Warehouses', to: '/app/warehouses', icon: Warehouse },
     { label: 'Products', to: '/app/products', icon: Package },
     { label: 'Suppliers', to: '/app/suppliers', icon: Truck },
+    { label: 'Purchase Orders', to: '/app/purchase-orders', icon: ShoppingCart },
+    { label: 'Opening Balances', to: '/app/opening-balances', icon: PackagePlus },
+    { label: 'Approvals', to: '/app/approvals', icon: ClipboardCheck, roles: [APP_ROLES.ADMIN, APP_ROLES.APPROVER] },
+    { label: 'Transfers', to: '/app/transfers', icon: ArrowRightLeft },
+    { label: 'Stock Adjustments', to: '/app/stock-adjustments', icon: Scale },
+    { label: 'Stock Issues', to: '/app/stock-issues', icon: PackageMinus },
     { label: 'Customers', to: '/app/customers', icon: Users },
-    { label: 'Procurement', to: '/app/procurement', icon: ShoppingCart },
-    { label: 'Inventory Ops', to: '/app/inventory-ops', icon: Warehouse },
-    { label: 'Transfers', icon: Truck, soon: true },
-    { label: 'Settings', icon: Settings, soon: true },
+    { label: 'Users', to: '/app/users', icon: Users, roles: [APP_ROLES.ADMIN] },
+    { label: 'Settings', to: '/app/settings', icon: Settings },
 ]
 
 const themeOptions: { label: string; value: Theme; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -86,47 +92,51 @@ export function AppShellLayout() {
     }
 
     function AppNavigation({ onItemClick }: { onItemClick?: () => void }) {
+        const userRoles = user?.roles ?? []
+
         return (
             <nav className="grid gap-1">
-                {navItems.map((item) => {
-                    const Icon = item.icon
-                    const active = isActive(item.to)
+                {navItems
+                    .filter((item) => !item.roles?.length || item.roles.some((role) => userRoles.includes(role)))
+                    .map((item) => {
+                        const Icon = item.icon
+                        const active = isActive(item.to)
 
-                    if (!item.to) {
+                        if (!item.to) {
+                            return (
+                                <div
+                                    key={item.label}
+                                    className="inline-flex cursor-not-allowed items-center justify-between rounded-md px-3 py-2 text-sm text-muted-foreground"
+                                >
+                                    <span className="inline-flex items-center gap-2">
+                                        <Icon className="size-4" />
+                                        {item.label}
+                                    </span>
+                                    {item.soon && <span className="text-xs text-muted-foreground">Soon</span>}
+                                </div>
+                            )
+                        }
+
                         return (
-                            <div
+                            <Link
                                 key={item.label}
-                                className="inline-flex cursor-not-allowed items-center justify-between rounded-md px-3 py-2 text-sm text-muted-foreground"
+                                to={item.to}
+                                onClick={onItemClick}
+                                className={cn(
+                                    'inline-flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors',
+                                    active
+                                        ? 'bg-primary/10 text-primary'
+                                        : 'text-foreground hover:bg-muted',
+                                )}
                             >
                                 <span className="inline-flex items-center gap-2">
                                     <Icon className="size-4" />
                                     {item.label}
                                 </span>
                                 {item.soon && <span className="text-xs text-muted-foreground">Soon</span>}
-                            </div>
+                            </Link>
                         )
-                    }
-
-                    return (
-                        <Link
-                            key={item.label}
-                            to={item.to}
-                            onClick={onItemClick}
-                            className={cn(
-                                'inline-flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors',
-                                active
-                                    ? 'bg-primary/10 text-primary'
-                                    : 'text-foreground hover:bg-muted',
-                            )}
-                        >
-                            <span className="inline-flex items-center gap-2">
-                                <Icon className="size-4" />
-                                {item.label}
-                            </span>
-                            {item.soon && <span className="text-xs text-muted-foreground">Soon</span>}
-                        </Link>
-                    )
-                })}
+                    })}
             </nav>
         )
     }

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { getStatusBadgeClassName } from '@/lib/status-badge'
 import { fetchSupplierById } from '@/services/suppliers.service'
 
 export function SupplierDetailPage() {
@@ -16,12 +17,16 @@ export function SupplierDetailPage() {
 
     return (
         <main className="space-y-6">
-            <div className="flex items-center justify-between">
-                <Button variant="outline" onClick={() => navigate({ to: '/app/suppliers' })}>
+            <div className="flex items-center justify-end md:justify-between">
+                <Button variant="outline" onClick={() => navigate({ to: '/app/suppliers' })} className="hidden md:inline-flex">
                     <ArrowLeft className="size-4" />
                     Back to Suppliers
                 </Button>
-                {supplier && <Badge variant={supplier.isActive ? 'success' : 'muted'}>{supplier.isActive ? 'Active' : 'Inactive'}</Badge>}
+                {supplier && (
+                    <Badge variant="outline" className={getStatusBadgeClassName(supplier.isActive ? 'Active' : 'Inactive')}>
+                        {supplier.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                )}
             </div>
 
             <Card className="bg-surface/95">

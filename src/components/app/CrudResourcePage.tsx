@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useForm, type DefaultValues, type FieldValues, type Path, type Resolver } from 'react-hook-form'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea } from '@/components/ui'
-import type { Pagination } from '@/api/types'
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, toast } from '@/components/ui'
+import { getApiErrorMessage, type Pagination } from '@/api/types'
 import { cn } from '@/lib/cn'
 
 type CrudFieldType = 'text' | 'email' | 'number' | 'textarea' | 'checkbox' | 'select'
@@ -181,7 +181,6 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
         handleSubmit,
         reset,
         formState: { errors, isSubmitting, dirtyFields },
-        setError,
     } = useForm<TForm>({
         resolver: resolver as Resolver<TForm>,
         defaultValues: getDefaultValues(),
@@ -209,23 +208,45 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
     const createMutation = useMutation({
         mutationFn: createItem,
         onSuccess: async () => {
-            await invalidate()
+            await Promise.all([
+                invalidate(),
+                queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }),
+            ])
+            toast.success(`${entityLabel} created successfully.`)
             closeForm()
+        },
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, `Unable to create ${entityLabel.toLowerCase()}.`))
         },
     })
 
     const updateMutation = useMutation({
         mutationFn: ({ item, values }: { item: TItem; values: Partial<TForm> }) => updateItem(item, values),
         onSuccess: async () => {
-            await invalidate()
+            await Promise.all([
+                invalidate(),
+                queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }),
+            ])
+            toast.success(`${entityLabel} updated successfully.`)
             closeForm()
+        },
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, `Unable to update ${entityLabel.toLowerCase()}.`))
         },
     })
 
     const deleteMutation = useMutation({
         mutationFn: deleteItem,
-        onSuccess: async () => {
-            await invalidate()
+        onSuccess: async (_, item) => {
+            await Promise.all([
+                invalidate(),
+                queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }),
+            ])
+            const label = getDeleteLabel?.(item) ?? entityLabel
+            toast.success(`${label} deleted successfully.`)
+        },
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, `Unable to delete ${entityLabel.toLowerCase()}.`))
         },
     })
 
@@ -262,7 +283,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
 
             await createMutation.mutateAsync(values)
         } catch {
-            setError('root', { message: `Unable to save ${entityLabel.toLowerCase()}.` })
+            // Mutation onError handlers already surface backend-aware toast messages.
         }
     }
 
@@ -314,8 +335,6 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
                                     </div>
                                 ))}
                             </div>
-
-                            {errors.root?.message && <p className="text-sm text-destructive">{errors.root.message}</p>}
 
                             <div className="flex flex-wrap gap-3">
                                 <Button type="submit" loading={isSubmitting || createMutation.isPending || updateMutation.isPending}>

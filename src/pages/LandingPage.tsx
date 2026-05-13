@@ -51,7 +51,7 @@ const trackableProducts = [
     'Construction and industrial consumables',
     'Medical supplies and non-prescription pharmacy stock',
     'Automotive parts, lubricants, and tools',
-    'Apparel variants by size, color, and packaging type',
+    'Clothing variants by size, color, and packaging type',
 ]
 
 export function LandingPage() {
@@ -86,7 +86,7 @@ export function LandingPage() {
                         </span>
                         <div>
                             <p className="text-sm font-semibold">KIP Inventory</p>
-                            <p className="text-xs text-muted-foreground">Inventory operations with control</p>
+                            <p className="text-xs text-muted-foreground hidden md:block">Inventory operations with control</p>
                         </div>
                     </div>
 

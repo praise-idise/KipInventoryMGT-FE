@@ -1,7 +1,7 @@
 export const PRODUCT_CATEGORY_OPTIONS = [
   { label: "Food & Beverage (FOD)", value: "FOD" },
   { label: "Electronics (ELE)", value: "ELE" },
-  { label: "Apparel (APR)", value: "APR" },
+  { label: "Clothing (CLT)", value: "CLT" },
   { label: "Pharmaceutical (PHA)", value: "PHA" },
   { label: "Construction (CNS)", value: "CNS" },
 ] as const;

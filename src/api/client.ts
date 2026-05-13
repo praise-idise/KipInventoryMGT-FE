@@ -1,4 +1,5 @@
 import type { ApiResponse, PaginatedApiResponse, ApiError } from "./types";
+import { APP_ROLES, type AppRole } from "@/auth/roles";
 import {
   ACCESS_TOKEN_KEY,
   clearAuthSession,
@@ -67,7 +68,7 @@ async function tryRefreshToken(): Promise<boolean> {
           token?: string | null;
           userId?: string | null;
           email?: string | null;
-          roles?: string[] | null;
+          roles?: AppRole[] | null;
         }>
       >(res);
 
@@ -82,7 +83,9 @@ async function tryRefreshToken(): Promise<boolean> {
         setAuthSession(token, {
           userId: response.data.userId,
           email: response.data.email,
-          roles: response.data.roles ?? [],
+          roles: (response.data.roles ?? []).filter((role): role is AppRole =>
+            Object.values(APP_ROLES).includes(role as AppRole),
+          ),
         });
       } else if (existingUser) {
         setAuthSession(token, existingUser);

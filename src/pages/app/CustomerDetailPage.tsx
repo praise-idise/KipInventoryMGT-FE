@@ -17,7 +17,7 @@ export function CustomerDetailPage() {
     return (
         <main className="space-y-6">
             <div className="flex items-center justify-between">
-                <Button variant="outline" onClick={() => navigate({ to: '/app/customers' })}>
+                <Button variant="outline" onClick={() => navigate({ to: '/app/customers' })} className="hidden md:inline-flex">
                     <ArrowLeft className="size-4" />
                     Back to Customers
                 </Button>

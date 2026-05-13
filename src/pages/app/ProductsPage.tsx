@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Badge } from '@/components/ui'
 import { CrudResourcePage, type CrudColumn, type CrudField } from '@/components/app/CrudResourcePage'
+import { getStatusBadgeClassName } from '@/lib/status-badge'
 import {
     PRODUCT_CATEGORY_OPTIONS,
     PRODUCT_SIZE_OPTIONS,
@@ -52,7 +53,9 @@ const columns: CrudColumn<ProductItem>[] = [
         truncate: false,
         className: 'w-28',
         render: (item) => (
-            <Badge variant={item.isActive ? 'success' : 'muted'}>{item.isActive ? 'Active' : 'Inactive'}</Badge>
+            <Badge variant="outline" className={getStatusBadgeClassName(item.isActive ? 'Active' : 'Inactive')}>
+                {item.isActive ? 'Active' : 'Inactive'}
+            </Badge>
         ),
     },
 ]
@@ -93,7 +96,7 @@ export function ProductsPage() {
     return (
         <CrudResourcePage<ProductItem, ProductFormValues>
             title="Products"
-            description="Maintain products and optional variant values."
+            description="Manage your inventory of products and link them to a supplier."
             entityLabel="Product"
             queryKey="products"
             searchPlaceholder="Search products by name, SKU, category, or brand"

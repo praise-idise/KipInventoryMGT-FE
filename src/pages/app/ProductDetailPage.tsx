@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label } from '@/components/ui'
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, toast } from '@/components/ui'
+import { getApiErrorMessage } from '@/api/types'
 import { PRODUCT_VARIANT_FIELDS } from '@/lib/product-taxonomy'
+import { getStatusBadgeClassName } from '@/lib/status-badge'
 import { fetchSuppliers } from '@/services/suppliers.service'
 import {
     createProductSupplierLink,
@@ -26,7 +28,7 @@ export function ProductDetailPage() {
     })
 
     const suppliersQuery = useQuery({
-        queryKey: ['supplier-options'],
+        queryKey: ['suppliers', 'options'],
         queryFn: () => fetchSuppliers({ pageNumber: 1, pageSize: 200, searchTerm: '' }),
     })
 
@@ -38,6 +40,10 @@ export function ProductDetailPage() {
             setSelectedSupplierId('')
             setNewSupplierUnitCost('0')
             setNewSupplierIsDefault(false)
+            toast.success('Supplier linked successfully.')
+        },
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, 'Unable to link supplier.'))
         },
     })
 
@@ -49,6 +55,10 @@ export function ProductDetailPage() {
             }),
         onSuccess: async () => {
             await queryClient.invalidateQueries({ queryKey: ['product-detail', productId] })
+            toast.success('Supplier link updated successfully.')
+        },
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, 'Unable to update supplier link.'))
         },
     })
 
@@ -56,6 +66,10 @@ export function ProductDetailPage() {
         mutationFn: (supplierId: string) => deleteProductSupplierLink(productId, supplierId),
         onSuccess: async () => {
             await queryClient.invalidateQueries({ queryKey: ['product-detail', productId] })
+            toast.success('Supplier unlinked successfully.')
+        },
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, 'Unable to unlink supplier.'))
         },
     })
 
@@ -76,13 +90,13 @@ export function ProductDetailPage() {
 
     async function handleLinkSupplier() {
         if (!selectedSupplierId) {
-            window.alert('Select a supplier to link.')
+            toast.warning('Select a supplier to link.')
             return
         }
 
         const parsedCost = Number(newSupplierUnitCost)
         if (!Number.isFinite(parsedCost) || parsedCost <= 0) {
-            window.alert('Unit cost must be greater than 0.')
+            toast.warning('Unit cost must be greater than 0.')
             return
         }
 
@@ -103,7 +117,7 @@ export function ProductDetailPage() {
 
         const parsed = Number(input)
         if (!Number.isFinite(parsed) || parsed <= 0) {
-            window.alert('Unit cost must be greater than 0.')
+            toast.warning('Unit cost must be greater than 0.')
             return
         }
 
@@ -118,12 +132,16 @@ export function ProductDetailPage() {
 
     return (
         <main className="space-y-6">
-            <div className="flex items-center justify-between">
-                <Button variant="outline" onClick={() => navigate({ to: '/app/products' })}>
+            <div className="flex items-center justify-end md:justify-between">
+                <Button variant="outline" onClick={() => navigate({ to: '/app/products' })} className="hidden md:inline-flex">
                     <ArrowLeft className="size-4" />
                     Back to Products
                 </Button>
-                {product && <Badge variant={product.isActive ? 'success' : 'muted'}>{product.isActive ? 'Active' : 'Inactive'}</Badge>}
+                {product && (
+                    <Badge variant="outline" className={getStatusBadgeClassName(product.isActive ? 'Active' : 'Inactive')}>
+                        {product.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                )}
             </div>
 
             <Card className="bg-surface/95">

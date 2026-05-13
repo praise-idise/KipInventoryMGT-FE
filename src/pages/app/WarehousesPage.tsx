@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Badge } from '@/components/ui'
 import { CrudResourcePage, type CrudColumn, type CrudField } from '@/components/app/CrudResourcePage'
+import { getStatusBadgeClassName } from '@/lib/status-badge'
 import {
     createWarehouse,
     deleteWarehouse,
@@ -37,7 +38,9 @@ const columns: CrudColumn<WarehouseItem>[] = [
         header: 'Status',
         truncate: false,
         render: (item) => (
-            <Badge variant={item.isActive ? 'success' : 'muted'}>{item.isActive ? 'Active' : 'Inactive'}</Badge>
+            <Badge variant="outline" className={getStatusBadgeClassName(item.isActive ? 'Active' : 'Inactive')}>
+                {item.isActive ? 'Active' : 'Inactive'}
+            </Badge>
         ),
     },
 ]

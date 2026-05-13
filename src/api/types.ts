@@ -37,3 +37,26 @@ export function isApiError(error: unknown): error is ApiError {
     (error as ApiError).success === false
   );
 }
+
+export function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (
+    isApiError(error) &&
+    typeof error.message === "string" &&
+    error.message.trim().length > 0
+  ) {
+    return error.message;
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim().length > 0) {
+      return message;
+    }
+  }
+
+  return fallback;
+}

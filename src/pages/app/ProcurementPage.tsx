@@ -1,9 +1,17 @@
+import { Link } from '@tanstack/react-router'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
 
 const modules = [
-    'Purchase Orders',
-    'Goods Receipts',
-    'Approval Queue',
+    {
+        title: 'Purchase Orders',
+        description: 'Draft, submit, and approve supplier orders.',
+        to: '/app/purchase-orders',
+    },
+    {
+        title: 'Approval Queue',
+        description: 'Review items waiting for approver action.',
+        to: '/app/approvals',
+    },
 ]
 
 export function ProcurementPage() {
@@ -16,15 +24,17 @@ export function ProcurementPage() {
                 </p>
             </div>
 
-            <section className="grid gap-4 md:grid-cols-3">
+            <section className="grid gap-4 md:grid-cols-2">
                 {modules.map((item) => (
-                    <Card key={item} className="bg-surface/95">
+                    <Card key={item.title} className="bg-surface/95">
                         <CardHeader>
-                            <CardTitle className="text-base">{item}</CardTitle>
-                            <CardDescription>Module entry point is ready for implementation.</CardDescription>
+                            <CardTitle className="text-base">{item.title}</CardTitle>
+                            <CardDescription>{item.description}</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-xs text-muted-foreground">Coming next in this module.</p>
+                            <Link to={item.to} className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium hover:bg-muted">
+                                Open
+                            </Link>
                         </CardContent>
                     </Card>
                 ))}

@@ -1,10 +1,12 @@
 export const ACCESS_TOKEN_KEY = "kipims_access_token";
 export const AUTH_USER_KEY = "kipims_auth_user";
 
+import type { AppRole } from "@/auth/roles";
+
 export interface AuthUser {
   userId: string;
   email: string;
-  roles: string[];
+  roles: AppRole[];
 }
 
 export function getAccessToken() {
