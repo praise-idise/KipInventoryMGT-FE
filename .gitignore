@@ -28,3 +28,6 @@ dist-ssr/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# C# Dev Kit language-service cache
+*.lscache
