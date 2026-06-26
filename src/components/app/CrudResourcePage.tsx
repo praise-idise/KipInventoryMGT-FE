@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useForm, type DefaultValues, type FieldValues, type Path, type Resolver } from 'react-hook-form'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, toast } from '@/components/ui'
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, useConfirm, toast } from '@/components/ui'
 import { getApiErrorMessage, type Pagination } from '@/api/types'
 import { cn } from '@/lib/cn'
 
@@ -160,6 +160,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
 }: CrudResourcePageProps<TItem, TForm>) {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
+    const { confirm, dialog } = useConfirm()
     const [pageNumber, setPageNumber] = useState(1)
     const [pageSize] = useState(7)
     const [searchInput, setSearchInput] = useState('')
@@ -289,7 +290,12 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
 
     async function handleDelete(item: TItem) {
         const label = getDeleteLabel?.(item) ?? entityLabel
-        const confirmed = window.confirm(`Delete ${label}?`)
+        const confirmed = await confirm({
+            title: `Delete ${entityLabel}`,
+            description: `Are you sure you want to delete ${label}? This action cannot be undone.`,
+            confirmLabel: 'Delete',
+            variant: 'danger',
+        })
         if (!confirmed) return
         await deleteMutation.mutateAsync(item)
     }
@@ -460,6 +466,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
                     </div>
                 </CardContent>
             </Card>
+            {dialog}
         </main>
     )
 }

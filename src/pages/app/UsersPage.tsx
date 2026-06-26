@@ -1,4 +1,4 @@
-import { useEffect, useState, type SyntheticEvent } from 'react'
+﻿import { useEffect, useState, type SyntheticEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { APP_ROLES, type AppRole } from '@/auth/roles'
 import { getApiErrorMessage } from '@/api/types'

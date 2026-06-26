@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { clearAuthSession, getAccessToken, getAuthUser, setAuthSession, type AuthUser } from '@/auth/session'
 import { login as loginRequest, logout as logoutRequest } from '@/services/auth.service'
 
@@ -12,9 +12,50 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+const AUTH_CHANNEL = 'kip-auth-sync'
+
+function broadcastAuthChange(action: 'login' | 'logout') {
+    try {
+        const channel = new BroadcastChannel(AUTH_CHANNEL)
+        channel.postMessage({ action, timestamp: Date.now() })
+        channel.close()
+    } catch {
+        // BroadcastChannel not supported (e.g., older browsers) — silently ignore
+    }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [token, setToken] = useState<string | null>(() => getAccessToken())
     const [user, setUser] = useState<AuthUser | null>(() => getAuthUser())
+
+    useEffect(() => {
+        let channel: BroadcastChannel | null = null
+
+        try {
+            channel = new BroadcastChannel(AUTH_CHANNEL)
+
+            channel.onmessage = (event: MessageEvent<{ action: 'login' | 'logout' }>) => {
+                if (event.data?.action === 'logout') {
+                    clearAuthSession()
+                    setToken(null)
+                    setUser(null)
+                } else if (event.data?.action === 'login') {
+                    const newToken = getAccessToken()
+                    const newUser = getAuthUser()
+                    if (newToken && newUser) {
+                        setToken(newToken)
+                        setUser(newUser)
+                    }
+                }
+            }
+        } catch {
+            // Silently ignore
+        }
+
+        return () => {
+            channel?.close()
+        }
+    }, [])
 
     async function login(payload: { email: string; password: string }) {
         const response = await loginRequest(payload)
@@ -33,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthSession(data.token, nextUser)
         setToken(data.token)
         setUser(nextUser)
+        broadcastAuthChange('login')
     }
 
     function logout() {
@@ -43,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearAuthSession()
         setToken(null)
         setUser(null)
+        broadcastAuthChange('logout')
 
         void logoutRequestPromise
         return Promise.resolve()
