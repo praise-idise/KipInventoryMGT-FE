@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Badge, Button, Dialog, ImageUpload, Input, Label, toast, useConfirm } from '@/components/ui'
+import { Badge, Button, Dialog, ImageUpload, Input, Label, toast } from '@/components/ui'
 import { CrudResourcePage, type CrudColumn, type CrudField } from '@/components/app/CrudResourcePage'
 import { getStatusBadgeClassName } from '@/lib/status-badge'
 import {
@@ -25,6 +25,7 @@ import {
 import {
     createProductAttribute,
     fetchProductAttributes,
+    PRODUCT_ATTRIBUTE_TYPES,
     type ProductAttributeType,
 } from '@/services/product-attributes.service'
 
@@ -48,8 +49,6 @@ const schema = z.object({
     isActive: z.boolean(),
 })
 
-const ATTRIBUTE_TYPES = ['Brand', 'Color', 'Finish', 'Grade', 'Storage', 'Dose'] as const
-
 function useAttributeOptions(type: ProductAttributeType) {
     return useQuery({
         queryKey: ['product-attributes', type],
@@ -72,22 +71,12 @@ export function ProductsPage() {
     const [addNewValue, setAddNewValue] = useState('')
     const [addNewSaving, setAddNewSaving] = useState(false)
 
-    const brandOptions = useAttributeOptions('Brand')
-    const colorOptions = useAttributeOptions('Color')
-    const finishOptions = useAttributeOptions('Finish')
-    const gradeOptions = useAttributeOptions('Grade')
-    const storageOptions = useAttributeOptions('Storage')
-    const doseOptions = useAttributeOptions('Dose')
+    const attributeOptionQueries = Object.fromEntries(
+        PRODUCT_ATTRIBUTE_TYPES.map((type) => [type, useAttributeOptions(type)] as const),
+    ) as Record<ProductAttributeType, ReturnType<typeof useAttributeOptions>>
 
-    function getOptions(type: ProductAttributeType) {
-        switch (type) {
-            case 'Brand': return brandOptions.data ?? []
-            case 'Color': return colorOptions.data ?? []
-            case 'Finish': return finishOptions.data ?? []
-            case 'Grade': return gradeOptions.data ?? []
-            case 'Storage': return storageOptions.data ?? []
-            case 'Dose': return doseOptions.data ?? []
-        }
+    function getAttributeOptions(type: ProductAttributeType) {
+        return attributeOptionQueries[type]?.data ?? []
     }
 
     function openAddNew(type: ProductAttributeType) {
@@ -127,7 +116,7 @@ export function ProductsPage() {
             type: 'searchableSelect',
             required: true,
             placeholder: 'Search brand...',
-            options: brandOptions.data ?? [],
+            options: attributeOptionQueries.Brand?.data ?? [],
             onAddNew: () => openAddNew('Brand'),
             addNewLabel: 'Add New Brand',
         },
@@ -142,7 +131,7 @@ export function ProductsPage() {
         },
         ...PRODUCT_VARIANT_FIELDS.map<CrudField<ProductFormValues>>((variant) => {
             const attrType = (variant.key.charAt(0).toUpperCase() + variant.key.slice(1)) as ProductAttributeType
-            const isSearchable = ['color', 'storage', 'dose', 'grade', 'finish'].includes(variant.key)
+            const isSearchable = PRODUCT_ATTRIBUTE_TYPES.some((t) => t.toLowerCase() === variant.key)
 
             if (variant.key === 'size') {
                 return {
@@ -159,7 +148,7 @@ export function ProductsPage() {
                 label: variant.label,
                 type: isSearchable ? 'searchableSelect' : 'text',
                 placeholder: `Search ${variant.label.toLowerCase()}...`,
-                options: isSearchable ? getOptions(attrType) : undefined,
+                options: isSearchable ? getAttributeOptions(attrType) : undefined,
                 onAddNew: isSearchable ? () => openAddNew(attrType) : undefined,
                 addNewLabel: isSearchable ? `Add New ${variant.label}` : undefined,
             }
@@ -168,7 +157,7 @@ export function ProductsPage() {
         { name: 'reorderThreshold', label: 'Reorder Threshold', required: true, type: 'number', placeholder: '20' },
         { name: 'reorderQuantity', label: 'Reorder Quantity', required: true, type: 'number', placeholder: '100' },
         { name: 'isActive', label: 'Product is active', type: 'checkbox', modes: ['edit'] },
-    ], [brandOptions.data, colorOptions.data, finishOptions.data, gradeOptions.data, storageOptions.data, doseOptions.data])
+    ], [attributeOptionQueries])
 
     const columns: CrudColumn<ProductItem>[] = useMemo(() => [
         {

@@ -187,7 +187,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
     )
 
     useEffect(() => {
-        setColumnPrefs((prev) => {
+        setColumnPrefs(() => {
             const merged = loadColumnPrefs(queryKey, allColumnHeaders)
             const newHeaders = allColumnHeaders.filter((h) => !merged.order.includes(h))
             return {
