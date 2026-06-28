@@ -1,11 +1,12 @@
-import { useMemo, useState, type SyntheticEvent } from 'react'
+import { useState, type SyntheticEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { APP_ROLES, hasRole } from '@/auth/roles'
 import { getApiErrorMessage } from '@/api/types'
 import { useAuth } from '@/hooks/use-auth'
+import { getGroupLabel } from '@/lib/nav-groups'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, toast } from '@/components/ui'
 import { fetchProducts } from '@/services/products.service'
-import { STOCK_ISSUE_REASON, createStockIssue, type CreateStockIssueRequest, type StockIssueReason } from '@/services/stock-issues.service'
+import { STOCK_ISSUE_REASON, createStockIssue, fetchStockIssues, type CreateStockIssueRequest, type StockIssueReason } from '@/services/stock-issues.service'
 import { fetchWarehouses } from '@/services/warehouses.service'
 
 type StockIssueLineDraft = {
@@ -21,33 +22,26 @@ type StockIssueFormState = {
     lines: StockIssueLineDraft[]
 }
 
-const reasonOptions = Object.values(STOCK_ISSUE_REASON)
-
-function createLineDraft(): StockIssueLineDraft {
-    return {
-        id: crypto.randomUUID(),
-        productId: '',
-        quantity: '1',
-    }
-}
-
 function createEmptyForm(): StockIssueFormState {
-    return {
-        warehouseId: '',
-        reason: STOCK_ISSUE_REASON.INTERNAL_USE,
-        notes: '',
-        lines: [createLineDraft()],
-    }
+    return { warehouseId: '', reason: STOCK_ISSUE_REASON.INTERNAL_USE, notes: '', lines: [{ id: crypto.randomUUID(), productId: '', quantity: '1' }] }
 }
 
 export function StockIssuesPage() {
     const { user } = useAuth()
     const queryClient = useQueryClient()
     const [isComposerOpen, setIsComposerOpen] = useState(false)
-    const [formState, setFormState] = useState<StockIssueFormState>(createEmptyForm)
+    const [formState, setFormState] = useState<StockIssueFormState>(createEmptyForm())
     const [formError, setFormError] = useState<string | null>(null)
+    const [pageNumber, setPageNumber] = useState(1)
+    const pageSize = 7
 
-    const canIssueStock = hasRole(user?.roles, APP_ROLES.WAREHOUSE_OFFICER)
+    const canIssueStock = hasRole(user?.roles, APP_ROLES.WAREHOUSE_OFFICER, APP_ROLES.ADMIN)
+
+    const listQuery = useQuery({
+        queryKey: ['stock-issues', pageNumber, pageSize],
+        queryFn: () => fetchStockIssues({ pageNumber, pageSize }),
+        staleTime: 0,
+    })
 
     const warehousesQuery = useQuery({
         queryKey: ['warehouses', 'options'],
@@ -59,13 +53,13 @@ export function StockIssuesPage() {
         queryFn: () => fetchProducts({ pageNumber: 1, pageSize: 500, searchTerm: '' }),
     })
 
-    const issueMutation = useMutation({
+    const createMutation = useMutation({
         mutationFn: createStockIssue,
         onSuccess: async () => {
-            await queryClient.invalidateQueries({ queryKey: ['warehouse-detail'] })
+            await queryClient.invalidateQueries({ queryKey: ['stock-issues'] })
+            setIsComposerOpen(false)
             setFormState(createEmptyForm())
             setFormError(null)
-            setIsComposerOpen(false)
             toast.success('Stock issue recorded.')
         },
         onError: (error) => {
@@ -73,251 +67,174 @@ export function StockIssuesPage() {
         },
     })
 
-    const productNames = useMemo(() => {
-        return Object.fromEntries((productsQuery.data?.data ?? []).map((product) => [product.productId, `${product.name} (${product.sku})`]))
-    }, [productsQuery.data])
-
-    function updateForm<K extends keyof StockIssueFormState>(key: K, value: StockIssueFormState[K]) {
-        setFormState((current) => ({ ...current, [key]: value }))
-    }
-
-    function updateLine(id: string, key: keyof StockIssueLineDraft, value: string) {
-        setFormState((current) => ({
-            ...current,
-            lines: current.lines.map((line) => (line.id === id ? { ...line, [key]: value } : line)),
-        }))
-    }
-
     function addLine() {
-        setFormState((current) => ({
-            ...current,
-            lines: [...current.lines, createLineDraft()],
-        }))
+        setFormState((prev) => ({ ...prev, lines: [...prev.lines, { id: crypto.randomUUID(), productId: '', quantity: '1' }] }))
     }
 
     function removeLine(id: string) {
-        setFormState((current) => ({
-            ...current,
-            lines: current.lines.length === 1 ? current.lines : current.lines.filter((line) => line.id !== id),
+        setFormState((prev) => {
+            if (prev.lines.length === 1) return prev
+            return { ...prev, lines: prev.lines.filter((l) => l.id !== id) }
+        })
+    }
+
+    function updateLine(id: string, field: 'productId' | 'quantity', value: string) {
+        setFormState((prev) => ({
+            ...prev,
+            lines: prev.lines.map((l) => (l.id === id ? { ...l, [field]: value } : l)),
         }))
     }
 
-    async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
+    async function handleSubmit(event: SyntheticEvent) {
         event.preventDefault()
-
-        const payload: CreateStockIssueRequest = {
-            warehouseId: formState.warehouseId.trim(),
-            reason: formState.reason,
-            notes: formState.notes.trim(),
-            lines: formState.lines.map((line) => ({
-                productId: line.productId.trim(),
-                quantity: Number(line.quantity),
-            })),
-        }
-
-        if (!payload.warehouseId) {
-            setFormError('Warehouse is required.')
-            return
-        }
-
-        if (payload.reason === STOCK_ISSUE_REASON.OTHER && !payload.notes) {
-            setFormError('Notes are required when the stock issue reason is Other.')
-            return
-        }
-
-        if (payload.lines.length === 0) {
-            setFormError('Add at least one stock issue line.')
-            return
-        }
-
-        if (payload.lines.some((line) => !line.productId || line.quantity <= 0)) {
-            setFormError('Each stock issue line needs a product and quantity above zero.')
-            return
-        }
-
-        if (new Set(payload.lines.map((line) => line.productId)).size !== payload.lines.length) {
-            setFormError('Duplicate products are not allowed in a stock issue request.')
-            return
-        }
-
         setFormError(null)
-        await issueMutation.mutateAsync(payload)
+
+        if (!formState.warehouseId) {
+            setFormError('Select a warehouse.')
+            return
+        }
+
+        const lines: CreateStockIssueRequest['lines'] = formState.lines.map((l) => {
+            const qty = Number(l.quantity)
+            if (!l.productId || !Number.isFinite(qty) || qty <= 0) {
+                throw new Error('Each line must have a product and a positive quantity.')
+            }
+            return { productId: l.productId, quantity: qty }
+        })
+
+        try {
+            await createMutation.mutateAsync({ warehouseId: formState.warehouseId, reason: formState.reason, notes: formState.notes, lines })
+        } catch {
+            // handled by onError
+        }
     }
+
+    const items = listQuery.data?.data ?? []
+    const pagination = listQuery.data?.pagination
 
     return (
         <main className="space-y-6">
-            <section className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-primary/5 p-6 shadow-sm md:flex-row md:items-end md:justify-between">
-                <div>
-                    <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/10 text-primary">Inventory ops</Badge>
-                    <h1 className="text-2xl font-semibold tracking-tight">Stock issues</h1>
-                    <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Record stock taken out for samples, internal use, disposals, and other controlled write-offs.</p>
+            <section className="rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-primary/5 p-6 shadow-sm">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/10 text-primary">{getGroupLabel('/app/stock-issues')}</Badge>
+                        <h1 className="text-2xl font-semibold tracking-tight">Stock Issues</h1>
+                        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Record stock taken out for samples, internal use, disposals, and other controlled write-offs.</p>
+                    </div>
+                    {canIssueStock && (
+                        <Button onClick={() => { setIsComposerOpen(!isComposerOpen); if (isComposerOpen) { setFormState(createEmptyForm()); setFormError(null) } }}>
+                            {isComposerOpen ? 'Cancel' : 'Record Issue'}
+                        </Button>
+                    )}
                 </div>
-                {canIssueStock && (
-                    <Button onClick={() => {
-                        setIsComposerOpen(true)
-                        setFormError(null)
-                    }}>
-                        Record stock issue
-                    </Button>
-                )}
             </section>
 
-            {!canIssueStock && (
-                <Card className="bg-surface/95">
-                    <CardContent className="p-5 text-sm text-muted-foreground">
-                        Stock issue entry is available to warehouse officers.
-                    </CardContent>
-                </Card>
-            )}
-
-            {canIssueStock && isComposerOpen && (
+            {isComposerOpen && (
                 <Card className="bg-surface/95">
                     <CardHeader>
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <CardTitle>Issue stock</CardTitle>
-                                <CardDescription>Capture the warehouse, reason, and affected products before recording the issue.</CardDescription>
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                    setIsComposerOpen(false)
-                                    setFormState(createEmptyForm())
-                                    setFormError(null)
-                                }}
-                            >
-                                Close form
-                            </Button>
-                        </div>
+                        <CardTitle>Record Stock Issue</CardTitle>
+                        <CardDescription>Remove stock from a warehouse for samples, internal use, damage disposal, or other write-off reasons.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                            <div className="grid gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label htmlFor="stockIssueWarehouse" required>Warehouse</Label>
-                                    <select
-                                        id="stockIssueWarehouse"
-                                        value={formState.warehouseId}
-                                        onChange={(event) => updateForm('warehouseId', event.target.value)}
-                                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                    >
+                                    <Label htmlFor="warehouseId" required>Warehouse</Label>
+                                    <select id="warehouseId" value={formState.warehouseId} onChange={(e) => setFormState((prev) => ({ ...prev, warehouseId: e.target.value }))} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
                                         <option value="">Select warehouse</option>
-                                        {(warehousesQuery.data?.data ?? []).map((warehouse) => (
-                                            <option key={warehouse.warehouseId} value={warehouse.warehouseId}>{warehouse.name}</option>
-                                        ))}
+                                        {(warehousesQuery.data?.data ?? []).map((w) => (<option key={w.warehouseId} value={w.warehouseId}>{w.name}</option>))}
                                     </select>
                                 </div>
-
                                 <div className="space-y-2">
-                                    <Label htmlFor="stockIssueReason" required>Reason</Label>
-                                    <select
-                                        id="stockIssueReason"
-                                        value={formState.reason}
-                                        onChange={(event) => updateForm('reason', event.target.value as StockIssueReason)}
-                                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                    >
-                                        {reasonOptions.map((reason) => (
-                                            <option key={reason} value={reason}>{reason}</option>
-                                        ))}
+                                    <Label htmlFor="reason" required>Reason</Label>
+                                    <select id="reason" value={formState.reason} onChange={(e) => setFormState((prev) => ({ ...prev, reason: e.target.value as StockIssueReason }))} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                                        {Object.entries(STOCK_ISSUE_REASON).map(([label, value]) => (<option key={value} value={value}>{label}</option>))}
                                     </select>
-                                </div>
-
-                                <div className="space-y-2 xl:col-span-1">
-                                    <Label htmlFor="stockIssueNotes">Notes</Label>
-                                    <Textarea
-                                        id="stockIssueNotes"
-                                        value={formState.notes}
-                                        onChange={(event) => updateForm('notes', event.target.value)}
-                                        placeholder="Required when reason is Other"
-                                    />
                                 </div>
                             </div>
 
-                            <div className="space-y-3 rounded-2xl border border-border/60 p-4">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <div>
-                                        <h2 className="text-sm font-medium">Issue lines</h2>
-                                        <p className="text-xs text-muted-foreground">Each product can appear only once in a stock issue request.</p>
-                                    </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="notes">Notes</Label>
+                                <Textarea id="notes" value={formState.notes} onChange={(e) => setFormState((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Optional notes about this issue" />
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-medium">Line items</h3>
                                     <Button type="button" variant="outline" onClick={addLine} className="w-full sm:w-auto">Add line</Button>
                                 </div>
-
-                                <div className="space-y-3">
-                                    {formState.lines.map((line, index) => (
-                                        <div key={line.id} className="grid gap-3 rounded-2xl border border-border/60 p-3 md:grid-cols-[1.6fr_0.8fr_auto]">
-                                            <div className="space-y-2">
-                                                <Label htmlFor={`issue-product-${line.id}`} required>Product {index + 1}</Label>
-                                                <select
-                                                    id={`issue-product-${line.id}`}
-                                                    value={line.productId}
-                                                    onChange={(event) => updateLine(line.id, 'productId', event.target.value)}
-                                                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                                >
-                                                    <option value="">Select product</option>
-                                                    {(productsQuery.data?.data ?? []).map((product) => (
-                                                        <option key={product.productId} value={product.productId}>{product.name} ({product.sku})</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor={`issue-quantity-${line.id}`} required>Quantity</Label>
-                                                <Input
-                                                    id={`issue-quantity-${line.id}`}
-                                                    type="number"
-                                                    min="1"
-                                                    value={line.quantity}
-                                                    onChange={(event) => updateLine(line.id, 'quantity', event.target.value)}
-                                                />
-                                            </div>
-                                            <div className="flex items-end">
-                                                <Button type="button" variant="outline" onClick={() => removeLine(line.id)} disabled={formState.lines.length === 1}>
-                                                    Remove
-                                                </Button>
-                                            </div>
+                                {formState.lines.map((line) => (
+                                    <div key={line.id} className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-[1fr_120px_auto] md:items-end">
+                                        <div className="space-y-2">
+                                            <Label>Product</Label>
+                                            <select value={line.productId} onChange={(e) => updateLine(line.id, 'productId', e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                                                <option value="">Select product</option>
+                                                {(productsQuery.data?.data ?? []).map((p) => (<option key={p.productId} value={p.productId}>{p.name} ({p.sku})</option>))}
+                                            </select>
                                         </div>
-                                    ))}
-                                </div>
+                                        <div className="space-y-2">
+                                            <Label>Quantity</Label>
+                                            <Input type="number" min="1" value={line.quantity} onChange={(e) => updateLine(line.id, 'quantity', e.target.value)} />
+                                        </div>
+                                        <Button type="button" variant="outline" onClick={() => removeLine(line.id)} disabled={formState.lines.length === 1}>Remove</Button>
+                                    </div>
+                                ))}
                             </div>
 
                             {formError && <p className="text-sm text-destructive">{formError}</p>}
 
                             <div className="flex flex-wrap gap-3">
-                                <Button type="submit" loading={issueMutation.isPending}>Record stock issue</Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => {
-                                        setFormState(createEmptyForm())
-                                        setFormError(null)
-                                    }}
-                                >
-                                    Reset form
-                                </Button>
+                                <Button type="submit" loading={createMutation.isPending}>Record Stock Issue</Button>
+                                <Button type="button" variant="outline" onClick={() => { setIsComposerOpen(false); setFormState(createEmptyForm()); setFormError(null) }}>Cancel</Button>
                             </div>
                         </form>
                     </CardContent>
                 </Card>
             )}
 
-            {canIssueStock && isComposerOpen && (
-                <Card className="bg-surface/95">
-                    <CardHeader>
-                        <CardTitle>Current issue lines</CardTitle>
-                        <CardDescription>Review the products and quantities queued for this stock issue before submission.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-2">
-                            {formState.lines.map((line) => (
-                                <div key={line.id} className="flex flex-col gap-1 rounded-xl border border-border/50 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                                    <span>{productNames[line.productId] ?? (line.productId || 'No product selected')}</span>
-                                    <span className="text-muted-foreground">Quantity {line.quantity || '0'}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+            <Card className="bg-surface/95">
+                <CardHeader>
+                    <CardTitle>Stock Issue Records</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="overflow-x-auto rounded-lg border border-border">
+                        <table className="w-max min-w-full divide-y divide-border text-sm">
+                            <thead className="bg-muted/40 text-left text-muted-foreground">
+                                <tr>
+                                    <th className="px-4 py-3 font-medium">Date</th>
+                                    <th className="px-4 py-3 font-medium">Product</th>
+                                    <th className="px-4 py-3 font-medium">Warehouse</th>
+                                    <th className="px-4 py-3 font-medium">Reason</th>
+                                    <th className="px-4 py-3 font-medium">Quantity</th>
+                                    <th className="px-4 py-3 font-medium">Unit Cost</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {listQuery.isLoading ? (
+                                    <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Loading...</td></tr>
+                                ) : items.length === 0 ? (
+                                    <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">No stock issue records found.</td></tr>
+                                ) : (
+                                    items.map((item) => (
+                                        <tr key={item.stockMovementId} className="bg-surface">
+                                            <td className="px-4 py-3 text-muted-foreground">{new Date(item.occurredAt).toLocaleDateString()}</td>
+                                            <td className="px-4 py-3 font-medium">{item.productName} <span className="text-muted-foreground">({item.sku})</span></td>
+                                            <td className="px-4 py-3">{item.warehouseName}</td>
+                                            <td className="px-4 py-3">{item.reason}</td>
+                                            <td className="px-4 py-3">{item.quantity}</td>
+                                            <td className="px-4 py-3">{item.unitCost}</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between">
+                        <Button variant="outline" onClick={() => setPageNumber((p) => Math.max(1, p - 1))} disabled={pageNumber <= 1}>Previous</Button>
+                        <Button variant="outline" onClick={() => setPageNumber((p) => p + 1)} disabled={!pagination || pageNumber >= pagination.totalPages}>Next</Button>
+                    </div>
+                </CardContent>
+            </Card>
         </main>
     )
 }

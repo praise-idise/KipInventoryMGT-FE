@@ -4,6 +4,7 @@ import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { getApiErrorMessage } from '@/api/types'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Textarea, toast } from '@/components/ui'
+import { cn } from '@/lib/cn'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
 import {
     APPROVAL_DECISION_STATUS,
@@ -36,6 +37,13 @@ import { fetchProducts } from '@/services/products.service'
 import { fetchSuppliers } from '@/services/suppliers.service'
 import { fetchWarehouses } from '@/services/warehouses.service'
 import { STOCK_ADJUSTMENT_STATUS, TRANSFER_REQUEST_STATUS } from '@/lib/domain-values'
+
+type TabId = 'overview' | 'history'
+
+const TABS: { id: TabId; label: string }[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'history', label: 'History' },
+]
 
 type ApprovalDocumentDetail = PurchaseOrderItem | TransferRequestItem | StockAdjustmentItem
 
@@ -243,6 +251,7 @@ export function ApprovalDetailPage() {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const params = useParams({ strict: false }) as { documentType?: string; documentId?: string }
+    const [activeTab, setActiveTab] = useState<TabId>('overview')
     const [decisionComment, setDecisionComment] = useState('')
 
     const documentType = useMemo(() => resolveDocumentType(params.documentType ?? ''), [params.documentType])
@@ -421,6 +430,17 @@ export function ApprovalDetailPage() {
                 </Card>
             ) : (
                 <>
+                    <h1 className="text-2xl font-bold tracking-tight">{selectedDocument && detailQuery.data ? getDocumentNumber(detailQuery.data, selectedDocument.documentType) : 'Review'}</h1>
+
+                    <div className="border-b border-border">
+                        <nav className="flex gap-4" role="tablist">
+                            {TABS.map((tab) => (
+                                <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} className={cn('relative pb-2.5 text-sm font-medium transition-colors', activeTab === tab.id ? 'text-foreground after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-primary' : 'text-muted-foreground hover:text-foreground')}>{tab.label}</button>
+                            ))}
+                        </nav>
+                    </div>
+
+                    {activeTab === 'overview' && (<>
                     <Card className="bg-surface/95">
                         <CardHeader>
                             <CardTitle>{getDocumentLabel(selectedDocument.documentType)} details</CardTitle>
@@ -505,7 +525,8 @@ export function ApprovalDetailPage() {
                             </CardContent>
                         </Card>
                     )}
-
+                    </>)}
+                    {activeTab === 'history' && (
                     <Card className="bg-surface/95">
                         <CardHeader>
                             <CardTitle>Approval history</CardTitle>
@@ -537,6 +558,7 @@ export function ApprovalDetailPage() {
                             )}
                         </CardContent>
                     </Card>
+                    )}
                 </>
             )}
         </main>

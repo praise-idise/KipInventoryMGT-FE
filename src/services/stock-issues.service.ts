@@ -16,6 +16,24 @@ export interface CreateStockIssueRequest {
   lines: StockIssueLineItem[];
 }
 
+export interface StockIssueListItem {
+  stockMovementId: string
+  productId: string
+  productName: string
+  sku: string
+  warehouseId: string
+  warehouseName: string
+  reason: StockIssueReason
+  quantity: number
+  unitCost: number
+  notes?: string | null
+  occurredAt: string
+}
+
+export async function fetchStockIssues(args: { pageNumber: number; pageSize: number }) {
+  return apiClient.getPaginated<StockIssueListItem>("/StockIssues", args)
+}
+
 export async function createStockIssue(request: CreateStockIssueRequest) {
   return apiClient.post<unknown>(
     "/StockIssues",

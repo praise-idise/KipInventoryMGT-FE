@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
+import { cn } from '@/lib/cn'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
 import {
     APPROVAL_DECISION_STATUS,
@@ -51,33 +52,35 @@ export function ApprovalsPage() {
 
     return (
         <main className="space-y-6">
-            <section className="rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-primary/5 p-6 shadow-sm">
-                <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/10 text-primary">Approvals</Badge>
-                <h1 className="text-2xl font-semibold tracking-tight">Approval queue</h1>
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                    Open each request in a dedicated detail page, review it fully, and take your decision there.
-                </p>
-            </section>
+            <h1 className="text-2xl font-bold tracking-tight">Approval Queue</h1>
+
+            <div className="border-b border-border">
+                <nav className="flex gap-4" role="tablist">
+                    {approvalStatuses.map((statusOption) => (
+                        <button
+                            key={statusOption}
+                            type="button"
+                            role="tab"
+                            aria-selected={status === statusOption}
+                            onClick={() => setStatus(statusOption)}
+                            className={cn(
+                                'relative pb-2.5 text-sm font-medium transition-colors',
+                                status === statusOption
+                                    ? 'text-foreground after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-primary'
+                                    : 'text-muted-foreground hover:text-foreground',
+                            )}
+                        >
+                            {formatStatusLabel(statusOption)}
+                        </button>
+                    ))}
+                </nav>
+            </div>
 
             <Card className="bg-surface/95">
                 <CardHeader>
                     <CardTitle>{formatStatusLabel(status)} approvals</CardTitle>
-                    <CardDescription>Review document decisions and actor metadata across approval statuses.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                        {approvalStatuses.map((statusOption) => (
-                            <Button
-                                key={statusOption}
-                                size="sm"
-                                variant={status === statusOption ? 'secondary' : 'outline'}
-                                onClick={() => setStatus(statusOption)}
-                            >
-                                {formatStatusLabel(statusOption)}
-                            </Button>
-                        ))}
-                    </div>
-
                     {approvalsQuery.isLoading ? (
                         <p className="text-sm text-muted-foreground">Loading approvals...</p>
                     ) : approvalsQuery.data?.data.length ? (

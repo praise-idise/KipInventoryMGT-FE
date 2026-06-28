@@ -1,65 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowRightLeft, Boxes, ChevronDown, ClipboardCheck, ClipboardList, Database, LayoutDashboard, LogOut, Menu, Monitor, Moon, Package, PackageMinus, PackagePlus, Scale, Settings, Shield, ShoppingCart, Sun, Truck, Users, Warehouse, X } from 'lucide-react'
+import { Boxes, ChevronDown, LogOut, Menu, Monitor, Moon, Sun, X } from 'lucide-react'
 import { Button } from '@/components/ui'
-import { APP_ROLES, type AppRole } from '@/auth/roles'
 import { useAuth } from '@/hooks/use-auth'
 import { Theme, useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/cn'
-
-type NavItem = {
-    label: string
-    icon: React.ComponentType<{ className?: string }>
-    to?: string
-    soon?: boolean
-    roles?: AppRole[]
-}
-
-type NavGroup = {
-    label: string
-    icon: React.ComponentType<{ className?: string }>
-    items: NavItem[]
-}
-
-const navGroups: (NavItem | NavGroup)[] = [
-    { label: 'Dashboard', to: '/app/dashboard', icon: LayoutDashboard },
-    {
-        label: 'Master Data',
-        icon: Database,
-        items: [
-            { label: 'Warehouses', to: '/app/warehouses', icon: Warehouse },
-            { label: 'Products', to: '/app/products', icon: Package },
-            { label: 'Suppliers', to: '/app/suppliers', icon: Truck },
-            { label: 'Customers', to: '/app/customers', icon: Users },
-        ],
-    },
-    {
-        label: 'Procurement',
-        icon: ShoppingCart,
-        items: [
-            { label: 'Purchase Orders', to: '/app/purchase-orders', icon: ShoppingCart },
-        ],
-    },
-    {
-        label: 'Inventory',
-        icon: ClipboardList,
-        items: [
-            { label: 'Opening Balances', to: '/app/opening-balances', icon: PackagePlus },
-            { label: 'Transfers', to: '/app/transfers', icon: ArrowRightLeft },
-            { label: 'Stock Adjustments', to: '/app/stock-adjustments', icon: Scale },
-            { label: 'Stock Issues', to: '/app/stock-issues', icon: PackageMinus },
-        ],
-    },
-    {
-        label: 'Administration',
-        icon: Shield,
-        items: [
-            { label: 'Approvals', to: '/app/approvals', icon: ClipboardCheck, roles: [APP_ROLES.ADMIN, APP_ROLES.APPROVER] },
-            { label: 'Users', to: '/app/users', icon: Users, roles: [APP_ROLES.ADMIN] },
-            { label: 'Settings', to: '/app/settings', icon: Settings },
-        ],
-    },
-]
+import { navGroups, type NavGroup } from '@/lib/nav-groups'
 
 const themeOptions: { label: string; value: Theme; icon: React.ComponentType<{ className?: string }> }[] = [
     { label: 'Light', value: 'light', icon: Sun },
@@ -320,7 +266,7 @@ export function AppShellLayout() {
                         </div>
                     </header>
 
-                    <div className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+                    <div className="min-w-0 flex-1 px-4 py-6 md:p-14 lg:p-16">
                         <Outlet />
                     </div>
                 </div>

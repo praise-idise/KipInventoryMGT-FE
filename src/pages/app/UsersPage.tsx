@@ -1,13 +1,16 @@
-﻿import { useEffect, useState, type SyntheticEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { EllipsisVertical } from 'lucide-react'
 import { APP_ROLES, type AppRole } from '@/auth/roles'
 import { getApiErrorMessage } from '@/api/types'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, toast } from '@/components/ui'
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Dialog, Input, Label, Popover, toast, useConfirm } from '@/components/ui'
+import { cn } from '@/lib/cn'
 import { useAuth } from '@/hooks/use-auth'
 import { getStatusBadgeClassName } from '@/lib/status-badge'
 import { activateUser, deactivateUser, fetchUsers, revokeUserSessions, updateUserRoles } from '@/services/users.service'
+import { createRole, deleteRole, fetchRoles, updateRole, type RoleItem } from '@/services/roles.service'
 
-const roleOptions: AppRole[] = [
+const ROLE_OPTIONS: AppRole[] = [
     APP_ROLES.USER,
     APP_ROLES.PROCUREMENT_OFFICER,
     APP_ROLES.WAREHOUSE_OFFICER,
@@ -15,14 +18,26 @@ const roleOptions: AppRole[] = [
     APP_ROLES.ADMIN,
 ]
 
+type TabId = 'users' | 'roles'
+
+const TABS: { id: TabId; label: string }[] = [
+    { id: 'users', label: 'Users' },
+    { id: 'roles', label: 'Roles' },
+]
+
 export function UsersPage() {
     const { user } = useAuth()
     const queryClient = useQueryClient()
+    const { confirm, dialog: confirmDialog } = useConfirm()
+    const [activeTab, setActiveTab] = useState<TabId>('users')
     const [draftSearchTerm, setDraftSearchTerm] = useState('')
     const [searchTerm, setSearchTerm] = useState('')
-    const [isSearchPending, setIsSearchPending] = useState(false)
     const [pageNumber, setPageNumber] = useState(1)
     const [roleDrafts, setRoleDrafts] = useState<Record<string, AppRole[]>>({})
+    const [editingRolesFor, setEditingRolesFor] = useState<string | null>(null)
+    const [roleDialogOpen, setRoleDialogOpen] = useState(false)
+    const [editingRole, setEditingRole] = useState<{ id?: string; name: string; description: string } | null>(null)
+    const [roleDialogSaving, setRoleDialogSaving] = useState(false)
     const pageSize = 10
 
     useEffect(() => {
@@ -34,12 +49,6 @@ export function UsersPage() {
         queryFn: () => fetchUsers({ pageNumber, pageSize, searchTerm }),
         staleTime: 0,
     })
-
-    useEffect(() => {
-        if (!usersQuery.isFetching) {
-            setIsSearchPending(false)
-        }
-    }, [usersQuery.isFetching])
 
     const revokeMutation = useMutation({
         mutationFn: revokeUserSessions,
@@ -64,16 +73,55 @@ export function UsersPage() {
         },
     })
 
+    const rolesQuery = useQuery({
+        queryKey: ['roles'],
+        queryFn: fetchRoles,
+        staleTime: 0,
+    })
+
+    const createRoleMutation = useMutation({
+        mutationFn: createRole,
+        onSuccess: async () => {
+            await queryClient.invalidateQueries({ queryKey: ['roles'] })
+            setRoleDialogOpen(false)
+            setEditingRole(null)
+            toast.success('Role created.')
+        },
+        onError: (error) => { toast.error(getApiErrorMessage(error, 'Unable to create role.')) },
+    })
+
+    const updateRoleMutation = useMutation({
+        mutationFn: ({ roleId, values }: { roleId: string; values: { name?: string; description?: string; permissions?: string } }) =>
+            updateRole(roleId, values),
+        onSuccess: async () => {
+            await queryClient.invalidateQueries({ queryKey: ['roles'] })
+            setRoleDialogOpen(false)
+            setEditingRole(null)
+            toast.success('Role updated.')
+        },
+        onError: (error) => { toast.error(getApiErrorMessage(error, 'Unable to update role.')) },
+    })
+
+    const deleteRoleMutation = useMutation({
+        mutationFn: deleteRole,
+        onSuccess: async () => {
+            await queryClient.invalidateQueries({ queryKey: ['roles'] })
+            toast.success('Role deleted.')
+        },
+        onError: (error) => { toast.error(getApiErrorMessage(error, 'Unable to delete role.')) },
+    })
+
     const rolesMutation = useMutation({
         mutationFn: ({ userId, roles }: { userId: string; roles: AppRole[] }) => updateUserRoles(userId, roles),
-        onSuccess: async (response, variables) => {
+        onSuccess: async (_, variables) => {
             await queryClient.invalidateQueries({ queryKey: ['users'] })
+            setEditingRolesFor(null)
             setRoleDrafts((current) => {
                 const next = { ...current }
                 delete next[variables.userId]
                 return next
             })
-            toast.success(response.message || 'User roles updated successfully.')
+            toast.success('User roles updated successfully.')
         },
         onError: (error) => {
             toast.error(getApiErrorMessage(error, 'Unable to update user roles.'))
@@ -81,39 +129,12 @@ export function UsersPage() {
     })
 
     const visibleUsers = (usersQuery.data?.data ?? []).filter((item) => item.userId !== user?.userId)
-    const totalRecords = usersQuery.data?.pagination.totalRecords ?? visibleUsers.length
-    const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize))
-    const canGoPrevious = pageNumber > 1
-    const canGoNext = pageNumber < totalPages
+    const pagination = usersQuery.data?.pagination
+    const totalPages = pagination ? pagination.totalPages : 1
 
-    async function handleSearchSubmit(event: SyntheticEvent<HTMLFormElement>) {
-        event.preventDefault()
-        const nextSearchTerm = draftSearchTerm.trim()
-        const shouldSearch = nextSearchTerm !== searchTerm || pageNumber !== 1
-
-        setIsSearchPending(shouldSearch)
+    function handleSearch() {
+        setSearchTerm(draftSearchTerm.trim())
         setPageNumber(1)
-        setSearchTerm(nextSearchTerm)
-    }
-
-    async function handleRevoke(userId: string, userLabel: string) {
-        const confirmed = window.confirm(`Revoke all active sessions for ${userLabel}?`)
-        if (!confirmed) {
-            return
-        }
-
-        await revokeMutation.mutateAsync(userId)
-    }
-
-    async function handleToggleActive(userId: string, makeActive: boolean, userLabel: string) {
-        if (!makeActive) {
-            const confirmed = window.confirm(`Deactivate ${userLabel}? They will be signed out and can only return after reactivation.`)
-            if (!confirmed) {
-                return
-            }
-        }
-
-        await statusMutation.mutateAsync({ userId, makeActive })
     }
 
     function toggleRole(userId: string, role: AppRole, currentRoles: AppRole[]) {
@@ -122,220 +143,343 @@ export function UsersPage() {
             const nextRoles = baseRoles.includes(role)
                 ? baseRoles.filter((item) => item !== role)
                 : [...baseRoles, role]
-
-            return {
-                ...current,
-                [userId]: roleOptions.filter((item) => nextRoles.includes(item)),
-            }
+            return { ...current, [userId]: ROLE_OPTIONS.filter((item) => nextRoles.includes(item)) }
         })
     }
 
-    async function handleSaveRoles(userId: string, roles: AppRole[]) {
-        if (roles.length === 0) {
+    function openRoleEditor(userId: string) {
+        setEditingRolesFor(userId)
+    }
+
+    async function handleSaveRoles(userId: string, draftRoles: AppRole[]) {
+        if (draftRoles.length === 0) {
             toast.error('At least one role must remain assigned.')
             return
         }
+        await rolesMutation.mutateAsync({ userId, roles: draftRoles })
+    }
 
-        await rolesMutation.mutateAsync({ userId, roles })
+    async function handleToggleActive(userId: string, makeActive: boolean, userLabel: string) {
+        if (!makeActive) {
+            const confirmed = await confirm({
+                title: 'Deactivate User',
+                description: `Deactivate ${userLabel}? They will be signed out and can only return after reactivation.`,
+                confirmLabel: 'Deactivate',
+                variant: 'danger',
+            })
+            if (!confirmed) return
+        }
+        await statusMutation.mutateAsync({ userId, makeActive })
+    }
+
+    function openCreateRoleDialog() {
+        setEditingRole({ name: '', description: '' })
+        setRoleDialogOpen(true)
+    }
+
+    function openEditRoleDialog(role: RoleItem) {
+        setEditingRole({ id: role.id, name: role.name, description: role.description ?? '' })
+        setRoleDialogOpen(true)
+    }
+
+    async function handleSaveRole() {
+        if (!editingRole || !editingRole.name.trim()) return
+        setRoleDialogSaving(true)
+        try {
+            if (editingRole.id) {
+                await updateRoleMutation.mutateAsync({ roleId: editingRole.id, values: { name: editingRole.name, description: editingRole.description } })
+            } else {
+                await createRoleMutation.mutateAsync({ name: editingRole.name, description: editingRole.description })
+            }
+        } finally {
+            setRoleDialogSaving(false)
+        }
+    }
+
+    async function handleDeleteRole(roleId: string, name: string) {
+        const confirmed = await confirm({ title: 'Delete Role', description: `Delete "${name}"?`, confirmLabel: 'Delete', variant: 'danger' })
+        if (!confirmed) return
+        await deleteRoleMutation.mutateAsync(roleId)
+    }
+
+    async function handleRevoke(userId: string, userLabel: string) {
+        const confirmed = await confirm({
+            title: 'Revoke Sessions',
+            description: `Revoke all active sessions for ${userLabel}?`,
+            confirmLabel: 'Revoke',
+            variant: 'danger',
+        })
+        if (!confirmed) return
+        await revokeMutation.mutateAsync(userId)
     }
 
     return (
         <main className="space-y-6">
-            <section className="rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-primary/5 p-6 shadow-sm">
-                <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/10 text-primary">
-                    Inventory system users
-                </Badge>
-                <h1 className="text-2xl font-semibold tracking-tight">User management</h1>
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                    Review active accounts, confirm access state, and revoke server-side sessions when an account needs to be cut off immediately.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                    <Badge variant="muted">Signed in as {user?.email ?? 'unknown'}</Badge>
-                    <Badge variant="muted">Admin only</Badge>
-                    <Badge variant="muted">Current admin excluded</Badge>
-                </div>
-            </section>
+            <h1 className="text-2xl font-bold tracking-tight">Users & Roles</h1>
 
-            <Card className="bg-surface/95">
-                <CardHeader>
-                    <CardTitle>Find users</CardTitle>
-                    <CardDescription>Search by email, username, first name, or last name.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleSearchSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                        <div className="flex-1 space-y-2">
-                            <Label htmlFor="searchTerm">Search term</Label>
-                            <Input
-                                id="searchTerm"
-                                value={draftSearchTerm}
-                                onChange={(event) => setDraftSearchTerm(event.target.value)}
-                                placeholder="name@example.com"
-                            />
-                        </div>
-                        <Button type="submit" loading={isSearchPending}>
-                            Search
-                        </Button>
-                    </form>
-                </CardContent>
-            </Card>
-
-            <section className="grid gap-4">
-                {usersQuery.isLoading ? (
-                    Array.from({ length: 3 }).map((_, index) => (
-                        <Card key={index} className="bg-surface/95">
-                            <CardHeader>
-                                <CardDescription>Loading user</CardDescription>
-                                <CardTitle className="text-xl">—</CardTitle>
-                            </CardHeader>
-                        </Card>
-                    ))
-                ) : visibleUsers.length ? (
-                    visibleUsers.map((item) => {
-                        const draftRoles = roleDrafts[item.userId] ?? item.roles
-                        const hasRoleChanges = draftRoles.length !== item.roles.length || draftRoles.some((role) => !item.roles.includes(role))
-                        const userLabel = item.email ?? item.userName ?? item.userId
-
-                        return (
-                            <Card key={item.userId} className="bg-surface/95">
-                                <CardContent className="space-y-4 p-5">
-                                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                        <div className="space-y-2">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <h2 className="text-lg font-semibold">
-                                                    {item.firstName || item.lastName
-                                                        ? `${item.firstName ?? ''} ${item.lastName ?? ''}`.trim()
-                                                        : item.email || item.userName || item.userId}
-                                                </h2>
-                                                {item.isActive ? (
-                                                    <Badge variant="outline" className={getStatusBadgeClassName('Active')}>Active</Badge>
-                                                ) : (
-                                                    <Badge variant="outline" className={getStatusBadgeClassName('Inactive')}>Inactive</Badge>
-                                                )}
-                                                {item.isEmailConfirmed ? (
-                                                    <Badge variant="outline" className={getStatusBadgeClassName('Verified')}>Verified</Badge>
-                                                ) : (
-                                                    <Badge variant="outline" className={getStatusBadgeClassName('Unverified')}>Unverified</Badge>
-                                                )}
-                                            </div>
-                                            <p className="text-sm text-muted-foreground">{item.email ?? item.userName ?? 'No login identifier'}</p>
-                                            <p className="font-mono text-xs text-muted-foreground">{item.userId}</p>
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-2">
-                                            <Button
-                                                variant={item.isActive ? 'destructive' : 'outline'}
-                                                onClick={() => handleToggleActive(item.userId, !item.isActive, userLabel)}
-                                                loading={statusMutation.isPending && statusMutation.variables?.userId === item.userId}
-                                            >
-                                                {item.isActive ? 'Deactivate user' : 'Activate user'}
-                                            </Button>
-                                            <Button
-                                                variant="destructive"
-                                                onClick={() => handleRevoke(item.userId, userLabel)}
-                                                loading={revokeMutation.isPending && revokeMutation.variables === item.userId}
-                                            >
-                                                Revoke sessions
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
-                                        <div>
-                                            <p className="text-muted-foreground">Username</p>
-                                            <p className="font-medium">{item.userName ?? 'None'}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-muted-foreground">Token version</p>
-                                            <p className="font-medium">{item.tokenVersion}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-muted-foreground">Created</p>
-                                            <p className="font-medium">{new Date(item.createdAt).toLocaleString()}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-muted-foreground">Updated</p>
-                                            <p className="font-medium">{new Date(item.updatedAt).toLocaleString()}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-3 rounded-2xl border border-border/60 p-4">
-                                        <div>
-                                            <h3 className="text-sm font-medium">Assigned roles</h3>
-                                            <p className="text-xs text-muted-foreground">Role changes revoke active sessions automatically so the next sign-in uses the updated access set.</p>
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-2">
-                                            {item.roles.length ? item.roles.map((role) => <Badge key={role} variant="muted">{role}</Badge>) : <Badge variant="muted">No roles assigned</Badge>}
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-4">
-                                            {roleOptions.map((role) => {
-                                                const checked = draftRoles.includes(role)
-
-                                                return (
-                                                    <label key={role} className="inline-flex items-center gap-2 text-sm text-foreground">
-                                                        <input
-                                                            type="checkbox"
-                                                            className="size-4 rounded border-input"
-                                                            checked={checked}
-                                                            onChange={() => toggleRole(item.userId, role, item.roles)}
-                                                        />
-                                                        <span>{role}</span>
-                                                    </label>
-                                                )
-                                            })}
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-2">
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => handleSaveRoles(item.userId, draftRoles)}
-                                                loading={rolesMutation.isPending && rolesMutation.variables?.userId === item.userId}
-                                                disabled={!hasRoleChanges || draftRoles.length === 0}
-                                            >
-                                                Save roles
-                                            </Button>
-                                            {roleDrafts[item.userId] && (
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    onClick={() => setRoleDrafts((current) => {
-                                                        const next = { ...current }
-                                                        delete next[item.userId]
-                                                        return next
-                                                    })}
-                                                >
-                                                    Reset role changes
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )
-                    })
-                ) : (
-                    <Card className="bg-surface/95">
-                        <CardContent className="p-6 text-sm text-muted-foreground">
-                            No users matched your search.
-                        </CardContent>
-                    </Card>
-                )}
-            </section>
-
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-surface/95 p-4 text-sm">
-                <p className="text-muted-foreground">
-                    Showing page {pageNumber} of {totalPages} ({totalRecords} total)
-                </p>
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" disabled={!canGoPrevious || usersQuery.isFetching} onClick={() => setPageNumber((current) => Math.max(1, current - 1))}>
-                        Previous
-                    </Button>
-                    <Button variant="outline" disabled={!canGoNext || usersQuery.isFetching} onClick={() => setPageNumber((current) => Math.min(totalPages, current + 1))}>
-                        Next
-                    </Button>
-                </div>
+            <div className="border-b border-border">
+                <nav className="flex gap-4" role="tablist">
+                    {TABS.map((tab) => (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={activeTab === tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={cn(
+                                'relative pb-2.5 text-sm font-medium transition-colors',
+                                activeTab === tab.id
+                                    ? 'text-foreground after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-primary'
+                                    : 'text-muted-foreground hover:text-foreground',
+                            )}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </nav>
             </div>
+
+            {activeTab === 'users' && (
+                <Card className="bg-surface/95">
+                    <CardHeader>
+                        <CardTitle>All Users</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex gap-3">
+                            <Input
+                                value={draftSearchTerm}
+                                onChange={(e) => setDraftSearchTerm(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
+                                placeholder="Search by email, name, or username"
+                                className="md:max-w-sm"
+                            />
+                            <Button variant="outline" onClick={handleSearch}>
+                                Search
+                            </Button>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-lg border border-border">
+                            <table className="w-max min-w-full divide-y divide-border text-sm">
+                                <thead className="bg-muted/40 text-left text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 font-medium">Name</th>
+                                        <th className="px-4 py-3 font-medium">Email</th>
+                                        <th className="px-4 py-3 font-medium">Roles</th>
+                                        <th className="px-4 py-3 font-medium">Status</th>
+                                        <th className="px-4 py-3 font-medium">Created</th>
+                                        <th className="w-16 px-4 py-3 font-medium">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {usersQuery.isLoading ? (
+                                        <tr>
+                                            <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Loading users...</td>
+                                        </tr>
+                                    ) : visibleUsers.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">No users found.</td>
+                                        </tr>
+                                    ) : (
+                                        visibleUsers.map((item) => {
+                                            const userLabel = item.email ?? item.userName ?? item.userId
+
+                                            return (
+                                                <tr key={item.userId} className="bg-surface">
+                                                    <td className="px-4 py-3 font-medium">
+                                                        {item.firstName || item.lastName
+                                                            ? `${item.firstName ?? ''} ${item.lastName ?? ''}`.trim()
+                                                            : item.userName || '—'}
+                                                    </td>
+                                                    <td className="px-4 py-3">{item.email || '—'}</td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {item.roles.map((role) => (
+                                                                <Badge key={role} variant="muted" className="text-xs">{role}</Badge>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <Badge variant="outline" className={getStatusBadgeClassName(item.isActive ? 'Active' : 'Inactive')}>
+                                                            {item.isActive ? 'Active' : 'Inactive'}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-muted-foreground">
+                                                        {new Date(item.createdAt).toLocaleDateString()}
+                                                    </td>
+                                                    <td className="w-16 px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                        <Popover
+                                                            trigger={
+                                                                <span className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted">
+                                                                    <EllipsisVertical className="size-4" />
+                                                                </span>
+                                                            }
+                                                            align="end"
+                                                        >
+                                                            <div className="flex flex-col">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openRoleEditor(item.userId)}
+                                                                    className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                                                                >
+                                                                    Edit Roles
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleToggleActive(item.userId, !item.isActive, userLabel)}
+                                                                    className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                                                                >
+                                                                    {item.isActive ? 'Deactivate' : 'Activate'}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRevoke(item.userId, userLabel)}
+                                                                    className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors"
+                                                                >
+                                                                    Revoke Sessions
+                                                                </button>
+                                                            </div>
+                                                        </Popover>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <Button
+                                variant="outline"
+                                onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+                                disabled={pageNumber <= 1}
+                            >
+                                Previous
+                            </Button>
+                            <p className="text-xs text-muted-foreground">Page {pageNumber} of {totalPages}</p>
+                            <Button
+                                variant="outline"
+                                onClick={() => setPageNumber((p) => p + 1)}
+                                disabled={pageNumber >= totalPages}
+                            >
+                                Next
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {activeTab === 'roles' && (
+                <Card className="bg-surface/95">
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <CardTitle>Roles</CardTitle>
+                            <Button size="sm" onClick={openCreateRoleDialog}>Add Role</Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto rounded-lg border border-border">
+                            <table className="w-max min-w-full divide-y divide-border text-sm">
+                                <thead className="bg-muted/40 text-left text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 font-medium">Name</th>
+                                        <th className="px-4 py-3 font-medium">Description</th>
+                                        <th className="w-16 px-4 py-3 font-medium">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {rolesQuery.isLoading ? (
+                                        <tr><td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">Loading roles...</td></tr>
+                                    ) : (rolesQuery.data ?? []).length === 0 ? (
+                                        <tr><td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">No roles yet.</td></tr>
+                                    ) : (
+                                        (rolesQuery.data ?? []).map((role) => (
+                                            <tr key={role.id} className="bg-surface">
+                                                <td className="px-4 py-3 font-medium">{role.name}</td>
+                                                <td className="px-4 py-3 text-muted-foreground">{role.description || '—'}</td>
+                                                <td className="w-16 px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                    <Popover
+                                                        trigger={<span className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"><EllipsisVertical className="size-4" /></span>}
+                                                        align="end"
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            <button type="button" onClick={() => openEditRoleDialog(role)} className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors">Edit</button>
+                                                            <button type="button" onClick={() => handleDeleteRole(role.id, role.name)} className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors">Delete</button>
+                                                        </div>
+                                                    </Popover>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Role Editor Dialog */}
+            {editingRolesFor && (() => {
+                const editingUser = visibleUsers.find((u) => u.userId === editingRolesFor)
+                if (!editingUser) return null
+                const draftRoles = roleDrafts[editingRolesFor] ?? editingUser.roles
+                const hasChanges = JSON.stringify(draftRoles.sort()) !== JSON.stringify([...editingUser.roles].sort())
+
+                return (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setEditingRolesFor(null)}>
+                        <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm" />
+                        <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                            <h2 className="text-lg font-semibold mb-2">Edit Roles</h2>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                {editingUser.email || editingUser.userName || editingUser.userId}
+                            </p>
+                            <div className="space-y-3 mb-4">
+                                {ROLE_OPTIONS.map((role) => (
+                                    <label key={role} className="flex items-center gap-2 text-sm">
+                                        <input
+                                            type="checkbox"
+                                            className="size-4 rounded border-input"
+                                            checked={draftRoles.includes(role)}
+                                            onChange={() => toggleRole(editingRolesFor, role, editingUser.roles)}
+                                        />
+                                        {role}
+                                    </label>
+                                ))}
+                            </div>
+                            <div className="flex gap-3">
+                                <Button
+                                    onClick={() => handleSaveRoles(editingRolesFor, draftRoles)}
+                                    loading={rolesMutation.isPending}
+                                    disabled={!hasChanges || draftRoles.length === 0}
+                                >
+                                    Save Roles
+                                </Button>
+                                <Button variant="outline" onClick={() => setEditingRolesFor(null)}>
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            })()}
+            {confirmDialog}
+
+            <Dialog open={roleDialogOpen} onClose={() => setRoleDialogOpen(false)} title={editingRole?.id ? 'Edit Role' : 'Create Role'}>
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="role-name" required>Name</Label>
+                        <Input id="role-name" value={editingRole?.name ?? ''} onChange={(e) => setEditingRole((prev) => prev ? { ...prev, name: e.target.value } : null)} placeholder="Administrator" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="role-desc">Description</Label>
+                        <Input id="role-desc" value={editingRole?.description ?? ''} onChange={(e) => setEditingRole((prev) => prev ? { ...prev, description: e.target.value } : null)} placeholder="Full system access" maxLength={500} />
+                    </div>
+                    <div className="flex gap-3">
+                        <Button onClick={handleSaveRole} loading={roleDialogSaving}>Save</Button>
+                        <Button variant="outline" onClick={() => setRoleDialogOpen(false)}>Cancel</Button>
+                    </div>
+                </div>
+            </Dialog>
         </main>
     )
 }

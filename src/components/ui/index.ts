@@ -3,6 +3,7 @@ export * from "./button";
 export * from "./card";
 export * from "./confirm-dialog";
 export * from "./dialog";
+export * from "./image-skeleton";
 export * from "./image-upload";
 export * from "./input";
 export * from "./label";

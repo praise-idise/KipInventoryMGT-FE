@@ -13,6 +13,7 @@ export const PRODUCT_UNIT_OPTIONS = [
   { label: "Carton", value: "Carton" },
   { label: "Kilogram (kg)", value: "Kilogram" },
   { label: "Gram (g)", value: "Gram" },
+  { label: "Milligram (mg)", value: "Milligram" },
   { label: "Liter (l)", value: "Liter" },
   { label: "Milliliter (ml)", value: "Milliliter" },
   { label: "Set", value: "Set" },

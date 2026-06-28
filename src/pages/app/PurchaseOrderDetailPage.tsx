@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import { APP_ROLES, hasRole } from '@/auth/roles'
 import { getApiErrorMessage } from '@/api/types'
 import { PurchaseOrderDraftFormCard, buildPurchaseOrderDraftPatch, createEmptyPurchaseOrderForm, createPurchaseOrderEditForm, validatePurchaseOrderDraft, type PurchaseOrderFormState } from '@/components/app/PurchaseOrderDraftForm'
@@ -32,6 +33,7 @@ export function PurchaseOrderDetailPage() {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const { user } = useAuth()
+    const [activeTab, setActiveTab] = useState<'overview' | 'lines'>('overview')
     const [isEditing, setIsEditing] = useState(false)
     const [formState, setFormState] = useState<PurchaseOrderFormState>(createEmptyPurchaseOrderForm)
     const [formError, setFormError] = useState<string | null>(null)
@@ -44,6 +46,7 @@ export function PurchaseOrderDetailPage() {
     const detailQuery = useQuery({
         queryKey: ['purchase-order-detail', purchaseOrderId],
         queryFn: () => fetchPurchaseOrderById(purchaseOrderId),
+        staleTime: 0,
     })
 
     const suppliersQuery = useQuery({
@@ -265,10 +268,10 @@ export function PurchaseOrderDetailPage() {
 
     return (
         <main className="space-y-6">
-            <div className="flex items-center justify-end gap-3 md:justify-between">
-                <Button variant="outline" onClick={() => navigate({ to: '/app/purchase-orders' })} className="hidden md:inline-flex">
+            <div className="flex items-center justify-between gap-3">
+                <Button variant="outline" onClick={() => navigate({ to: '/app/purchase-orders' })}>
                     <ArrowLeft className="size-4" />
-                    Back to Purchase Orders
+                    <span className="hidden sm:inline ml-2">Back to Purchase Orders</span>
                 </Button>
                 {order && (
                     <Badge variant="outline" className={`w-fit ${getStatusBadgeClassName(order.status)}`}>
@@ -311,12 +314,22 @@ export function PurchaseOrderDetailPage() {
                 </Card>
             )}
 
+            <h1 className="text-2xl font-bold tracking-tight">{order?.purchaseOrderNumber ?? 'Purchase Order Detail'}</h1>
+
+            <div className="border-b border-border">
+                <nav className="flex gap-4" role="tablist">
+                    {[{ id: 'overview' as const, label: 'Overview' }, { id: 'lines' as const, label: 'Lines' }].map((tab) => (
+                        <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} className={cn('relative pb-2.5 text-sm font-medium transition-colors', activeTab === tab.id ? 'text-foreground after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-primary' : 'text-muted-foreground hover:text-foreground')}>{tab.label}</button>
+                    ))}
+                </nav>
+            </div>
+
+            {activeTab === 'overview' && (<>
             <Card className="bg-surface/95">
                 <CardHeader>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <CardTitle>{order?.purchaseOrderNumber ?? 'Purchase Order Detail'}</CardTitle>
-                            <CardDescription>View full purchase order details and manage the next available actions.</CardDescription>
+                            <CardTitle>Purchase Order Details</CardTitle>
                         </div>
                         {order && (
                             <div className="flex flex-wrap gap-2">
@@ -390,7 +403,8 @@ export function PurchaseOrderDetailPage() {
                     )}
                 </CardContent>
             </Card>
-
+            </>)}
+            {activeTab === 'lines' && (<>
             {order && (
                 <Card className="bg-surface/95">
                     <CardHeader>
@@ -427,7 +441,7 @@ export function PurchaseOrderDetailPage() {
                     </CardContent>
                 </Card>
             )}
-
+            </>)}
             {order && canReceiveGoods && isReceiveOpen && (
                 <Card className="bg-surface/95">
                     <CardHeader>

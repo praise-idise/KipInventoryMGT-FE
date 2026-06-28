@@ -5,6 +5,7 @@ import { getApiErrorMessage } from '@/api/types'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Popover, Textarea, toast } from '@/components/ui'
 import { EllipsisVertical } from 'lucide-react'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
+import { getGroupLabel } from '@/lib/nav-groups'
 import { fetchProducts } from '@/services/products.service'
 import {
     createTransferRequestDraft,
@@ -280,7 +281,7 @@ export function TransferRequestsPage() {
         <main className="min-w-0 space-y-6">
             <section className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-primary/5 p-6 shadow-sm md:flex-row md:items-end md:justify-between">
                 <div>
-                    <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/10 text-primary">Inventory Ops</Badge>
+                    <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/10 text-primary">{getGroupLabel('/app/transfers')}</Badge>
                     <h1 className="text-2xl font-semibold tracking-tight">Transfer Requests</h1>
                     <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Move stock between warehouses through draft creation, submission, dispatch, and completion.</p>
                 </div>
@@ -296,7 +297,7 @@ export function TransferRequestsPage() {
                                 <CardDescription>Capture source, destination, and product quantities before submission. Products are limited to available source inventory.</CardDescription>
                             </div>
                             <Button type="button" variant="outline" onClick={closeComposer}>
-                                Close Form
+                                Cancel
                             </Button>
                         </div>
                     </CardHeader>

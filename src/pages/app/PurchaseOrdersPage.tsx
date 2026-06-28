@@ -6,6 +6,7 @@ import { PurchaseOrderDraftFormCard, buildPurchaseOrderDraftPatch, buildPurchase
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Popover, toast } from '@/components/ui'
 import { EllipsisVertical } from 'lucide-react'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
+import { getGroupLabel } from '@/lib/nav-groups'
 import {
     createPurchaseOrderDraft,
     deletePurchaseOrderDraft,
@@ -211,17 +212,19 @@ export function PurchaseOrdersPage() {
 
     return (
         <main className="min-w-0 space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div>
-                    <Badge variant="outline" className="mb-3 border-primary/30 bg-primary/10 text-primary">
-                        Purchase Order Flow
-                    </Badge>
-                    <h1 className="text-2xl font-semibold tracking-tight">Purchase Orders</h1>
-                    <p className="mt-2 text-sm text-muted-foreground">Create, search, review, submit, and manage purchase orders.</p>
-                </div>
+            <section className="rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-primary/5 p-6 shadow-sm">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/10 text-primary">
+                            {getGroupLabel('/app/purchase-orders')}
+                        </Badge>
+                        <h1 className="text-2xl font-semibold tracking-tight">Purchase Orders</h1>
+                        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Create, search, review, submit, and manage purchase orders.</p>
+                    </div>
 
                 <Button onClick={openCreate}>Add Purchase Order</Button>
             </div>
+            </section>
 
             {(isCreateOpen || editingOrder) && (
                 <PurchaseOrderDraftFormCard

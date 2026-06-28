@@ -1,7 +1,8 @@
-﻿import { useMemo } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import { getApiErrorMessage } from '@/api/types'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, toast } from '@/components/ui'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
@@ -21,10 +22,12 @@ export function StockAdjustmentDetailPage() {
     const { stockAdjustmentId } = useParams({ strict: false }) as { stockAdjustmentId: string }
     const navigate = useNavigate()
     const queryClient = useQueryClient()
+    const [activeTab, setActiveTab] = useState<'overview' | 'lines'>('overview')
 
     const detailQuery = useQuery({
         queryKey: ['stock-adjustment-detail', stockAdjustmentId],
         queryFn: () => fetchStockAdjustmentById(stockAdjustmentId),
+        staleTime: 0,
     })
 
     const warehousesQuery = useQuery({
@@ -138,11 +141,22 @@ export function StockAdjustmentDetailPage() {
                 )}
             </div>
 
+            <h1 className="text-2xl font-bold tracking-tight">{adjustment?.adjustmentNumber ?? 'Stock Adjustment Detail'}</h1>
+
+            <div className="border-b border-border">
+                <nav className="flex gap-4" role="tablist">
+                    {[{ id: 'overview' as const, label: 'Overview' }, { id: 'lines' as const, label: 'Lines' }].map((tab) => (
+                        <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} className={cn('relative pb-2.5 text-sm font-medium transition-colors', activeTab === tab.id ? 'text-foreground after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-primary' : 'text-muted-foreground hover:text-foreground')}>{tab.label}</button>
+                    ))}
+                </nav>
+            </div>
+
+            {activeTab === 'overview' && (<>
             <Card className="bg-surface/95">
                 <CardHeader>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <CardTitle>{adjustment?.adjustmentNumber ?? 'Stock Adjustment Detail'}</CardTitle>
+                            <CardTitle>Adjustment Details</CardTitle>
                             <CardDescription>View adjustment details and execute the next valid workflow action.</CardDescription>
                         </div>
                         {adjustment && (
@@ -233,6 +247,8 @@ export function StockAdjustmentDetailPage() {
                 </Card>
             )}
 
+            </>)}
+            {activeTab === 'lines' && (<>
             {adjustment && (
                 <Card className="bg-surface/95">
                     <CardHeader>
@@ -269,6 +285,7 @@ export function StockAdjustmentDetailPage() {
                     </CardContent>
                 </Card>
             )}
+            </>)}
         </main>
     )
 }

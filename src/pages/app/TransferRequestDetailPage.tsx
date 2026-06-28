@@ -1,7 +1,8 @@
-﻿import { useMemo } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import { getApiErrorMessage } from '@/api/types'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, toast } from '@/components/ui'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
@@ -22,10 +23,12 @@ export function TransferRequestDetailPage() {
     const { transferRequestId } = useParams({ strict: false }) as { transferRequestId: string }
     const navigate = useNavigate()
     const queryClient = useQueryClient()
+    const [activeTab, setActiveTab] = useState<'overview' | 'lines'>('overview')
 
     const detailQuery = useQuery({
         queryKey: ['transfer-request-detail', transferRequestId],
         queryFn: () => fetchTransferRequestById(transferRequestId),
+        staleTime: 0,
     })
 
     const warehousesQuery = useQuery({
@@ -151,12 +154,22 @@ export function TransferRequestDetailPage() {
                 )}
             </div>
 
+            <h1 className="text-2xl font-bold tracking-tight">{transfer?.transferNumber ?? 'Transfer Request Detail'}</h1>
+
+            <div className="border-b border-border">
+                <nav className="flex gap-4" role="tablist">
+                    {[{ id: 'overview' as const, label: 'Overview' }, { id: 'lines' as const, label: 'Lines' }].map((tab) => (
+                        <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} className={cn('relative pb-2.5 text-sm font-medium transition-colors', activeTab === tab.id ? 'text-foreground after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-primary' : 'text-muted-foreground hover:text-foreground')}>{tab.label}</button>
+                    ))}
+                </nav>
+            </div>
+
+            {activeTab === 'overview' && (<>
             <Card className="bg-surface/95">
                 <CardHeader>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <CardTitle>{transfer?.transferNumber ?? 'Transfer Request Detail'}</CardTitle>
-                            <CardDescription>View transfer details and execute the next valid workflow action.</CardDescription>
+                            <CardTitle>Transfer Details</CardTitle>
                         </div>
                         {transfer && (
                             <div className="flex flex-wrap gap-2">
@@ -255,6 +268,8 @@ export function TransferRequestDetailPage() {
                 </Card>
             )}
 
+            </>)}
+            {activeTab === 'lines' && (<>
             {transfer && (
                 <Card className="bg-surface/95">
                     <CardHeader>
@@ -289,6 +304,7 @@ export function TransferRequestDetailPage() {
                     </CardContent>
                 </Card>
             )}
+            </>)}
         </main>
     )
 }

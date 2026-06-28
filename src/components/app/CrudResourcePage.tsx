@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useForm, type DefaultValues, type FieldValues, type Path, type Resolver } from 'react-hook-form'
 import { Columns, EllipsisVertical, Filter, GripVertical } from 'lucide-react'
 import {
@@ -21,6 +21,7 @@ import {
     toast,
 } from '@/components/ui'
 import { getApiErrorMessage, type Pagination } from '@/api/types'
+import { getGroupLabel } from '@/lib/nav-groups'
 import { cn } from '@/lib/cn'
 
 type CrudFieldType = 'text' | 'email' | 'number' | 'textarea' | 'checkbox' | 'select' | 'searchableSelect'
@@ -139,6 +140,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
     forceSubmit,
 }: CrudResourcePageProps<TItem, TForm>) {
     const navigate = useNavigate()
+    const pathname = useRouterState({ select: (s) => s.location.pathname })
     const queryClient = useQueryClient()
     const { confirm, dialog } = useConfirm()
     const [pageNumber, setPageNumber] = useState(1)
@@ -515,17 +517,18 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
 
     return (
         <main className="min-w-0 space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div>
-                    <Badge variant="outline" className="mb-3 border-primary/30 bg-primary/10 text-primary">
-                        {entityLabel} Flow
-                    </Badge>
-                    <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-                    <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+            <section className="rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-primary/5 p-6 shadow-sm">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/10 text-primary">
+                            {getGroupLabel(pathname) || entityLabel}
+                        </Badge>
+                        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+                        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{description}</p>
+                    </div>
+                    <Button onClick={openCreate}>Add {entityLabel}</Button>
                 </div>
-
-                <Button onClick={openCreate}>Add {entityLabel}</Button>
-            </div>
+            </section>
 
             {mode && (
                 <Card className="bg-surface/95">

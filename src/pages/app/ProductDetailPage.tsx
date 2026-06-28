@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft, EllipsisVertical, Info, Pencil, Trash2 } from 'lucide-react'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, Input, Label, Popover, useConfirm, toast } from '@/components/ui'
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, ImageSkeleton, Input, Label, Popover, useConfirm, toast } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { getApiErrorMessage } from '@/api/types'
 import { PRODUCT_VARIANT_FIELDS } from '@/lib/product-taxonomy'
@@ -32,6 +32,7 @@ export function ProductDetailPage() {
     const [selectedSupplierId, setSelectedSupplierId] = useState('')
     const [newSupplierUnitCost, setNewSupplierUnitCost] = useState('0')
     const [newSupplierIsDefault, setNewSupplierIsDefault] = useState(false)
+    const [imageLoaded, setImageLoaded] = useState(false)
     const [editCostDialog, setEditCostDialog] = useState<{
         open: boolean
         supplierId: string
@@ -292,11 +293,13 @@ export function ProductDetailPage() {
                             </Card>
                             <div>
                                 {product.imageUrl ? (
-                                    <div className="aspect-square overflow-hidden rounded-lg border border-border">
+                                    <div className="relative aspect-square overflow-hidden rounded-lg border border-border">
+                                        {!imageLoaded && <ImageSkeleton className="absolute inset-0" />}
                                         <img
                                             src={product.imageUrl}
                                             alt={product.name}
-                                            className="h-full w-full object-cover"
+                                            onLoad={() => setImageLoaded(true)}
+                                            className={cn('h-full w-full object-cover', !imageLoaded && 'invisible')}
                                         />
                                     </div>
                                 ) : (

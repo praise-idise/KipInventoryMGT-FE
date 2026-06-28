@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { getApiErrorMessage } from '@/api/types'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, toast } from '@/components/ui'
+import { getGroupLabel } from '@/lib/nav-groups'
 import { OPENING_BALANCE_STATUS } from '@/lib/domain-values'
 import { fetchProducts } from '@/services/products.service'
 import { createOpeningBalance, fetchOpeningBalances, type CreateOpeningBalanceRequest } from '@/services/opening-balances.service'
@@ -182,14 +183,15 @@ export function OpeningBalancesPage() {
 
     return (
         <main className="min-w-0 space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div>
-                    <Badge variant="outline" className="mb-3 border-primary/30 bg-primary/10 text-primary">
-                        Inventory Ops Flow
-                    </Badge>
-                    <h1 className="text-2xl font-semibold tracking-tight">Opening Balances</h1>
-                    <p className="mt-2 text-sm text-muted-foreground">Set and review opening stock positions for warehouse inventory.</p>
-                </div>
+            <section className="rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-primary/5 p-6 shadow-sm">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/10 text-primary">
+                            {getGroupLabel('/app/opening-balances')}
+                        </Badge>
+                        <h1 className="text-2xl font-semibold tracking-tight">Opening Balances</h1>
+                        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Set and review opening stock positions for warehouse inventory.</p>
+                    </div>
 
                 <Button onClick={() => {
                     setIsComposerOpen(true)
@@ -198,6 +200,7 @@ export function OpeningBalancesPage() {
                     Create Opening Balance
                 </Button>
             </div>
+            </section>
 
             {isComposerOpen && (
                 <Card className="bg-surface/95">
@@ -216,7 +219,7 @@ export function OpeningBalancesPage() {
                                     setFormError(null)
                                 }}
                             >
-                                Close Form
+                                Cancel
                             </Button>
                         </div>
                     </CardHeader>
