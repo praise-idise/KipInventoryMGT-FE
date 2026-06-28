@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { getApiErrorMessage } from '@/api/types'
 import { PurchaseOrderDraftFormCard, buildPurchaseOrderDraftPatch, buildPurchaseOrderDraftValues, createEmptyPurchaseOrderForm, createPurchaseOrderEditForm, validatePurchaseOrderDraft, type PurchaseOrderFormState } from '@/components/app/PurchaseOrderDraftForm'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, toast } from '@/components/ui'
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Popover, toast } from '@/components/ui'
+import { EllipsisVertical } from 'lucide-react'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
 import {
     createPurchaseOrderDraft,
@@ -53,6 +54,7 @@ export function PurchaseOrdersPage() {
     const listQuery = useQuery({
         queryKey: ['purchase-orders', activeSearchTerm, pageNumber, pageSize],
         queryFn: () => fetchPurchaseOrders({ pageNumber, pageSize, searchTerm: activeSearchTerm }),
+        staleTime: 0,
     })
 
     const suppliersQuery = useQuery({
@@ -271,7 +273,7 @@ export function PurchaseOrdersPage() {
                                     <th className="px-4 py-3 font-medium whitespace-nowrap">Ordered</th>
                                     <th className="px-4 py-3 font-medium whitespace-nowrap">Expected Arrival</th>
                                     <th className="px-4 py-3 font-medium whitespace-nowrap">Status</th>
-                                    <th className="w-56 min-w-56 px-4 py-3 font-medium whitespace-nowrap lg:sticky lg:right-0 lg:z-20 lg:border-l lg:border-border lg:bg-muted">
+                                    <th className="w-16 min-w-16 px-4 py-3 font-medium whitespace-nowrap">
                                         Actions
                                     </th>
                                 </tr>
@@ -298,7 +300,14 @@ export function PurchaseOrdersPage() {
                                         const canDeleteOrder = canEditOrder
 
                                         return (
-                                            <tr key={item.purchaseOrderId} className="bg-surface">
+                                            <tr
+                                                key={item.purchaseOrderId}
+                                                className="bg-surface cursor-pointer hover:bg-muted/50 transition-colors"
+                                                onClick={() => navigate({
+                                                    to: '/app/purchase-orders/$purchaseOrderId',
+                                                    params: { purchaseOrderId: item.purchaseOrderId },
+                                                })}
+                                            >
                                                 <td className="px-4 py-3 align-top">{item.purchaseOrderNumber}</td>
                                                 <td className="px-4 py-3 align-top">{supplierNames[item.supplierId] ?? item.supplierId}</td>
                                                 <td className="px-4 py-3 align-top">{item.warehouseName ?? warehouseNames[item.warehouseId] ?? item.warehouseId}</td>
@@ -309,48 +318,44 @@ export function PurchaseOrdersPage() {
                                                         {formatStatusLabel(item.status)}
                                                     </Badge>
                                                 </td>
-                                                <td className="w-56 min-w-56 px-4 py-3 align-top whitespace-nowrap lg:sticky lg:right-0 lg:z-10 lg:border-l lg:border-border lg:bg-muted/50">
-                                                    <div className="relative z-10 flex flex-nowrap gap-2">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            className="shrink-0"
-                                                            onClick={() => navigate({
-                                                                to: '/app/purchase-orders/$purchaseOrderId',
-                                                                params: { purchaseOrderId: item.purchaseOrderId },
-                                                            })}
-                                                        >
-                                                            View
-                                                        </Button>
-                                                        {canEditOrder && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="shrink-0"
-                                                                onClick={() => openEdit(item.purchaseOrderId)}
-                                                                loading={loadEditMutation.isPending && loadEditMutation.variables === item.purchaseOrderId}
-                                                            >
-                                                                Edit
-                                                            </Button>
-                                                        )}
-                                                        {canDeleteOrder && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="destructive"
-                                                                className="shrink-0"
-                                                                onClick={() => {
-                                                                    if (!window.confirm(`Delete ${item.purchaseOrderNumber}?`)) {
-                                                                        return
-                                                                    }
-
-                                                                    deleteDraftMutation.mutate(item.purchaseOrderId)
-                                                                }}
-                                                                loading={deleteDraftMutation.isPending && deleteDraftMutation.variables === item.purchaseOrderId}
-                                                            >
-                                                                Delete
-                                                            </Button>
-                                                        )}
-                                                    </div>
+                                                <td
+                                                    className="w-16 min-w-16 px-4 py-3 align-top whitespace-nowrap"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <Popover
+                                                        trigger={
+                                                            <span className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted">
+                                                                <EllipsisVertical className="size-4" />
+                                                            </span>
+                                                        }
+                                                        align="end"
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            {canEditOrder && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openEdit(item.purchaseOrderId)}
+                                                                    disabled={loadEditMutation.isPending && loadEditMutation.variables === item.purchaseOrderId}
+                                                                    className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                                                                >
+                                                                    Edit
+                                                                </button>
+                                                            )}
+                                                            {canDeleteOrder && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (!window.confirm(`Delete ${item.purchaseOrderNumber}?`)) return
+                                                                        deleteDraftMutation.mutate(item.purchaseOrderId)
+                                                                    }}
+                                                                    disabled={deleteDraftMutation.isPending && deleteDraftMutation.variables === item.purchaseOrderId}
+                                                                    className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors"
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </Popover>
                                                 </td>
                                             </tr>
                                         )

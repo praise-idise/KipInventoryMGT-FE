@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowRightLeft, Boxes, ClipboardCheck, LayoutDashboard, LogOut, Menu, Monitor, Moon, Package, PackageMinus, PackagePlus, Scale, Settings, ShoppingCart, Sun, Truck, Users, Warehouse, X } from 'lucide-react'
+import { ArrowRightLeft, Boxes, ChevronDown, ClipboardCheck, ClipboardList, Database, LayoutDashboard, LogOut, Menu, Monitor, Moon, Package, PackageMinus, PackagePlus, Scale, Settings, Shield, ShoppingCart, Sun, Truck, Users, Warehouse, X } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { APP_ROLES, type AppRole } from '@/auth/roles'
 import { useAuth } from '@/hooks/use-auth'
@@ -15,20 +15,50 @@ type NavItem = {
     roles?: AppRole[]
 }
 
-const navItems: NavItem[] = [
+type NavGroup = {
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+    items: NavItem[]
+}
+
+const navGroups: (NavItem | NavGroup)[] = [
     { label: 'Dashboard', to: '/app/dashboard', icon: LayoutDashboard },
-    { label: 'Warehouses', to: '/app/warehouses', icon: Warehouse },
-    { label: 'Products', to: '/app/products', icon: Package },
-    { label: 'Suppliers', to: '/app/suppliers', icon: Truck },
-    { label: 'Purchase Orders', to: '/app/purchase-orders', icon: ShoppingCart },
-    { label: 'Opening Balances', to: '/app/opening-balances', icon: PackagePlus },
-    { label: 'Approvals', to: '/app/approvals', icon: ClipboardCheck, roles: [APP_ROLES.ADMIN, APP_ROLES.APPROVER] },
-    { label: 'Transfers', to: '/app/transfers', icon: ArrowRightLeft },
-    { label: 'Stock Adjustments', to: '/app/stock-adjustments', icon: Scale },
-    { label: 'Stock Issues', to: '/app/stock-issues', icon: PackageMinus },
-    { label: 'Customers', to: '/app/customers', icon: Users },
-    { label: 'Users', to: '/app/users', icon: Users, roles: [APP_ROLES.ADMIN] },
-    { label: 'Settings', to: '/app/settings', icon: Settings },
+    {
+        label: 'Master Data',
+        icon: Database,
+        items: [
+            { label: 'Warehouses', to: '/app/warehouses', icon: Warehouse },
+            { label: 'Products', to: '/app/products', icon: Package },
+            { label: 'Suppliers', to: '/app/suppliers', icon: Truck },
+            { label: 'Customers', to: '/app/customers', icon: Users },
+        ],
+    },
+    {
+        label: 'Procurement',
+        icon: ShoppingCart,
+        items: [
+            { label: 'Purchase Orders', to: '/app/purchase-orders', icon: ShoppingCart },
+        ],
+    },
+    {
+        label: 'Inventory',
+        icon: ClipboardList,
+        items: [
+            { label: 'Opening Balances', to: '/app/opening-balances', icon: PackagePlus },
+            { label: 'Transfers', to: '/app/transfers', icon: ArrowRightLeft },
+            { label: 'Stock Adjustments', to: '/app/stock-adjustments', icon: Scale },
+            { label: 'Stock Issues', to: '/app/stock-issues', icon: PackageMinus },
+        ],
+    },
+    {
+        label: 'Administration',
+        icon: Shield,
+        items: [
+            { label: 'Approvals', to: '/app/approvals', icon: ClipboardCheck, roles: [APP_ROLES.ADMIN, APP_ROLES.APPROVER] },
+            { label: 'Users', to: '/app/users', icon: Users, roles: [APP_ROLES.ADMIN] },
+            { label: 'Settings', to: '/app/settings', icon: Settings },
+        ],
+    },
 ]
 
 const themeOptions: { label: string; value: Theme; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -91,52 +121,159 @@ export function AppShellLayout() {
         )
     }
 
+    function NavGroupSection({
+        group,
+        onItemClick,
+    }: {
+        group: NavGroup
+        onItemClick?: () => void
+    }) {
+        const userRoles = user?.roles ?? []
+        const visibleItems = group.items.filter(
+            (item) => !item.roles?.length || item.roles.some((role) => userRoles.includes(role)),
+        )
+
+        if (visibleItems.length === 0) return null
+
+        const hasActiveChild = visibleItems.some((item) => isActive(item.to))
+        const [isOpen, setIsOpen] = useState(hasActiveChild)
+
+        useEffect(() => {
+            if (hasActiveChild) setIsOpen(true)
+        }, [hasActiveChild])
+
+        const GroupIcon = group.icon
+
+        return (
+            <div>
+                <button
+                    type="button"
+                    onClick={() => setIsOpen((prev) => !prev)}
+                    className="inline-flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                    <GroupIcon className="size-4" />
+                    <span className="flex-1 text-left">{group.label}</span>
+                    <ChevronDown
+                        className={cn(
+                            'size-4 transition-transform duration-200',
+                            isOpen && 'rotate-180',
+                        )}
+                    />
+                </button>
+                <div
+                    className={cn(
+                        'grid transition-all duration-200',
+                        isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+                    )}
+                >
+                    <div className="overflow-hidden">
+                        <div className="grid gap-1 py-1 pl-6">
+                            {visibleItems.map((item) => {
+                                const Icon = item.icon
+                                const active = isActive(item.to)
+
+                                if (!item.to) {
+                                    return (
+                                        <div
+                                            key={item.label}
+                                            className="inline-flex cursor-not-allowed items-center justify-between rounded-md px-3 py-2 text-sm text-muted-foreground"
+                                        >
+                                            <span className="inline-flex items-center gap-2">
+                                                <Icon className="size-4" />
+                                                {item.label}
+                                            </span>
+                                            {item.soon && <span className="text-xs text-muted-foreground">Soon</span>}
+                                        </div>
+                                    )
+                                }
+
+                                return (
+                                    <Link
+                                        key={item.label}
+                                        to={item.to}
+                                        onClick={onItemClick}
+                                        className={cn(
+                                            'inline-flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors',
+                                            active
+                                                ? 'bg-primary/10 text-primary'
+                                                : 'text-foreground hover:bg-muted',
+                                        )}
+                                    >
+                                        <span className="inline-flex items-center gap-2">
+                                            <Icon className="size-4" />
+                                            {item.label}
+                                        </span>
+                                        {item.soon && <span className="text-xs text-muted-foreground">Soon</span>}
+                                    </Link>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     function AppNavigation({ onItemClick }: { onItemClick?: () => void }) {
         const userRoles = user?.roles ?? []
 
         return (
             <nav className="grid gap-1">
-                {navItems
-                    .filter((item) => !item.roles?.length || item.roles.some((role) => userRoles.includes(role)))
-                    .map((item) => {
-                        const Icon = item.icon
-                        const active = isActive(item.to)
+                {navGroups.map((entry) => {
+                    // Standalone nav item (Dashboard)
+                    if (!('items' in entry)) {
+                        const item = entry
+                        if (!item.roles?.length || item.roles.some((role) => userRoles.includes(role))) {
+                            const Icon = item.icon
+                            const active = isActive(item.to)
 
-                        if (!item.to) {
+                            if (!item.to) {
+                                return (
+                                    <div
+                                        key={item.label}
+                                        className="inline-flex cursor-not-allowed items-center justify-between rounded-md px-3 py-2 text-sm text-muted-foreground"
+                                    >
+                                        <span className="inline-flex items-center gap-2">
+                                            <Icon className="size-4" />
+                                            {item.label}
+                                        </span>
+                                        {item.soon && <span className="text-xs text-muted-foreground">Soon</span>}
+                                    </div>
+                                )
+                            }
+
                             return (
-                                <div
+                                <Link
                                     key={item.label}
-                                    className="inline-flex cursor-not-allowed items-center justify-between rounded-md px-3 py-2 text-sm text-muted-foreground"
+                                    to={item.to}
+                                    onClick={onItemClick}
+                                    className={cn(
+                                        'inline-flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors',
+                                        active
+                                            ? 'bg-primary/10 text-primary'
+                                            : 'text-foreground hover:bg-muted',
+                                    )}
                                 >
                                     <span className="inline-flex items-center gap-2">
                                         <Icon className="size-4" />
                                         {item.label}
                                     </span>
                                     {item.soon && <span className="text-xs text-muted-foreground">Soon</span>}
-                                </div>
+                                </Link>
                             )
                         }
+                        return null
+                    }
 
-                        return (
-                            <Link
-                                key={item.label}
-                                to={item.to}
-                                onClick={onItemClick}
-                                className={cn(
-                                    'inline-flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors',
-                                    active
-                                        ? 'bg-primary/10 text-primary'
-                                        : 'text-foreground hover:bg-muted',
-                                )}
-                            >
-                                <span className="inline-flex items-center gap-2">
-                                    <Icon className="size-4" />
-                                    {item.label}
-                                </span>
-                                {item.soon && <span className="text-xs text-muted-foreground">Soon</span>}
-                            </Link>
-                        )
-                    })}
+                    // Collapsible group
+                    return (
+                        <NavGroupSection
+                            key={entry.label}
+                            group={entry}
+                            onItemClick={onItemClick}
+                        />
+                    )
+                })}
             </nav>
         )
     }

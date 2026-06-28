@@ -18,7 +18,7 @@ import { OpeningBalanceDetailPage } from "@/pages/app/OpeningBalanceDetailPage";
 import { OpeningBalancesPage } from "@/pages/app/OpeningBalancesPage";
 import { ProductDetailPage } from "@/pages/app/ProductDetailPage";
 import { ProductsPage } from "@/pages/app/ProductsPage";
-import { ProcurementPage } from "@/pages/app/ProcurementPage";
+
 import { PurchaseOrderDetailPage } from "@/pages/app/PurchaseOrderDetailPage";
 import { PurchaseOrdersPage } from "@/pages/app/PurchaseOrdersPage";
 import { SettingsPage } from "@/pages/app/SettingsPage";
@@ -185,14 +185,6 @@ const customerDetailRoute = createRoute({
   component: CustomerDetailPage,
 });
 
-const procurementRoute = createRoute({
-  getParentRoute: () => appShellRoute,
-  path: "/procurement",
-  component: ProcurementPage,
-  beforeLoad: () => {
-    throw redirect({ to: "/app/purchase-orders" });
-  },
-});
 
 const purchaseOrdersRoute = createRoute({
   getParentRoute: () => appShellRoute,
@@ -296,13 +288,6 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
-const inventoryOpsRoute = createRoute({
-  getParentRoute: () => appShellRoute,
-  path: "/inventory-ops",
-  beforeLoad: () => {
-    throw redirect({ to: "/app/transfers" });
-  },
-});
 
 const routeTree = rootRoute.addChildren([
   landingRoute,
@@ -326,7 +311,7 @@ const routeTree = rootRoute.addChildren([
     supplierDetailRoute,
     customersRoute,
     customerDetailRoute,
-    procurementRoute,
+
     purchaseOrdersRoute,
     purchaseOrderDetailRoute,
     transferRequestsRoute,
@@ -340,7 +325,7 @@ const routeTree = rootRoute.addChildren([
     approvalDetailRoute,
     usersRoute,
     settingsRoute,
-    inventoryOpsRoute,
+
   ]),
 ]);
 

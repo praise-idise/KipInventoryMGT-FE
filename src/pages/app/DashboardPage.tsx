@@ -88,6 +88,7 @@ export function DashboardPage() {
                 customers: customers.pagination.totalRecords,
             } satisfies DashboardStats
         },
+        staleTime: 0,
     })
 
     const metrics = useMemo(() => buildMetrics(dashboardQuery.data ?? { products: 0, warehouses: 0, suppliers: 0, customers: 0 }), [dashboardQuery.data])

@@ -1,4 +1,5 @@
 import { apiClient } from "@/api/client";
+import { ACCESS_TOKEN_KEY } from "@/auth/session";
 import type {
   ProductSizeValue,
   ProductUnitValue,
@@ -17,12 +18,13 @@ export interface ProductItem {
   color?: string | null;
   storage?: string | null;
   size?: ProductSizeValue | null;
-  dosage?: string | null;
+  dose?: string | null;
   grade?: string | null;
   finish?: string | null;
   reorderThreshold: number;
   reorderQuantity: number;
   isActive: boolean;
+  imageUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,12 +53,13 @@ export interface ProductFormValues {
   color: string;
   storage: string;
   size: ProductSizeValue | "";
-  dosage: string;
+  dose: string;
   grade: string;
   finish: string;
   reorderThreshold: number;
   reorderQuantity: number;
   isActive: boolean;
+  imageUrl: string;
 }
 
 export interface CreateProductSupplierLinkInput {
@@ -102,11 +105,12 @@ export async function createProduct(values: ProductFormValues) {
       color: values.color || null,
       storage: values.storage || null,
       size: values.size || null,
-      dosage: values.dosage || null,
+      dose: values.dose || null,
       grade: values.grade || null,
       finish: values.finish || null,
       reorderThreshold: values.reorderThreshold,
       reorderQuantity: values.reorderQuantity,
+      imageUrl: values.imageUrl || null,
     },
     crypto.randomUUID(),
   );
@@ -117,7 +121,6 @@ export async function updateProduct(
   values: Partial<ProductFormValues>,
 ) {
   const payload: Record<string, unknown> = {};
-  // Only include fields that are present in the values object to avoid overwriting existing data with defaults
   if ("categoryCode" in values) payload.categoryCode = values.categoryCode;
   if ("brand" in values) payload.brand = values.brand;
   if ("name" in values) payload.name = values.name;
@@ -126,7 +129,7 @@ export async function updateProduct(
   if ("color" in values) payload.color = values.color ?? "";
   if ("storage" in values) payload.storage = values.storage ?? "";
   if ("size" in values) payload.size = values.size ?? "";
-  if ("dosage" in values) payload.dosage = values.dosage ?? "";
+  if ("dose" in values) payload.dose = values.dose ?? "";
   if ("grade" in values) payload.grade = values.grade ?? "";
   if ("finish" in values) payload.finish = values.finish ?? "";
   if ("reorderThreshold" in values)
@@ -134,6 +137,7 @@ export async function updateProduct(
   if ("reorderQuantity" in values)
     payload.reorderQuantity = values.reorderQuantity;
   if ("isActive" in values) payload.isActive = values.isActive;
+  if ("imageUrl" in values) payload.imageUrl = values.imageUrl ?? "";
 
   return apiClient.patch<ProductItem>(`/Products/${productId}`, payload);
 }
@@ -145,6 +149,27 @@ export async function deleteProduct(productId: string) {
 export async function fetchProductById(productId: string) {
   const response = await apiClient.get<ProductDetail>(`/Products/${productId}`);
   return response.data;
+}
+
+export async function uploadProductImage(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY)
+  const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/Products/upload-image`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: 'Upload failed' }))
+    throw error
+  }
+
+  const json = await res.json()
+  if (!json?.data?.imageUrl) throw new Error('No image URL returned')
+  return json.data.imageUrl
 }
 
 export async function createProductSupplierLink(

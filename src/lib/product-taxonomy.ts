@@ -33,7 +33,7 @@ export const PRODUCT_VARIANT_FIELDS = [
   { key: "color", label: "Color", placeholder: "Black" },
   { key: "storage", label: "Storage", placeholder: "128GB" },
   { key: "size", label: "Size", placeholder: "Select size" },
-  { key: "dosage", label: "Dosage", placeholder: "500MG" },
+  { key: "dose", label: "Dose", placeholder: "500MG" },
   { key: "grade", label: "Grade", placeholder: "Grade A" },
   { key: "finish", label: "Finish", placeholder: "Gloss" },
 ] as const;

@@ -2,7 +2,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { getApiErrorMessage } from '@/api/types'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, toast } from '@/components/ui'
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Popover, Textarea, toast } from '@/components/ui'
+import { EllipsisVertical } from 'lucide-react'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
 import { fetchProducts } from '@/services/products.service'
 import {
@@ -100,6 +101,7 @@ export function StockAdjustmentsPage() {
     const adjustmentsQuery = useQuery({
         queryKey: ['stock-adjustments', activeSearchTerm, pageNumber, pageSize],
         queryFn: () => fetchStockAdjustments({ pageNumber, pageSize, searchTerm: activeSearchTerm }),
+        staleTime: 0,
     })
 
     const warehousesQuery = useQuery({
@@ -433,7 +435,7 @@ export function StockAdjustmentsPage() {
                                     <th className="px-4 py-3 font-medium whitespace-nowrap">Requested</th>
                                     <th className="px-4 py-3 font-medium whitespace-nowrap">Status</th>
                                     <th className="px-4 py-3 font-medium whitespace-nowrap">Lines</th>
-                                    <th className="w-56 min-w-56 px-4 py-3 font-medium whitespace-nowrap lg:sticky lg:right-0 lg:z-20 lg:border-l lg:border-border lg:bg-muted">
+                                    <th className="w-16 min-w-16 px-4 py-3 font-medium whitespace-nowrap">
                                         Actions
                                     </th>
                                 </tr>
@@ -456,7 +458,14 @@ export function StockAdjustmentsPage() {
                                         const isDraftEditable = item.status === STOCK_ADJUSTMENT_STATUS.DRAFT || item.status === STOCK_ADJUSTMENT_STATUS.CHANGES_REQUESTED
 
                                         return (
-                                            <tr key={item.stockAdjustmentId} className="bg-surface">
+                                            <tr
+                                                key={item.stockAdjustmentId}
+                                                className="bg-surface cursor-pointer hover:bg-muted/50 transition-colors"
+                                                onClick={() => navigate({
+                                                    to: '/app/stock-adjustments/$stockAdjustmentId',
+                                                    params: { stockAdjustmentId: item.stockAdjustmentId },
+                                                })}
+                                            >
                                                 <td className="px-4 py-3 align-top">{item.adjustmentNumber}</td>
                                                 <td className="px-4 py-3 align-top">{warehouseNames[item.warehouseId] ?? item.warehouseId}</td>
                                                 <td className="px-4 py-3 align-top">{item.reason}</td>
@@ -467,47 +476,43 @@ export function StockAdjustmentsPage() {
                                                     </Badge>
                                                 </td>
                                                 <td className="px-4 py-3 align-top">{item.lines?.length ?? 0}</td>
-                                                <td className="w-56 min-w-56 px-4 py-3 align-top whitespace-nowrap lg:sticky lg:right-0 lg:z-10 lg:border-l lg:border-border lg:bg-muted/50">
-                                                    <div className="relative z-10 flex flex-nowrap gap-2">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            className="shrink-0"
-                                                            onClick={() => navigate({
-                                                                to: '/app/stock-adjustments/$stockAdjustmentId',
-                                                                params: { stockAdjustmentId: item.stockAdjustmentId },
-                                                            })}
-                                                        >
-                                                            View
-                                                        </Button>
-                                                        {isDraftEditable && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="shrink-0"
-                                                                onClick={() => openEditForm(item)}
-                                                            >
-                                                                Edit
-                                                            </Button>
-                                                        )}
-                                                        {isDraftEditable && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="destructive"
-                                                                className="shrink-0"
-                                                                onClick={() => {
-                                                                    if (!window.confirm(`Delete ${item.adjustmentNumber}?`)) {
-                                                                        return
-                                                                    }
-
-                                                                    deleteDraftMutation.mutate(item.stockAdjustmentId)
-                                                                }}
-                                                                loading={deleteDraftMutation.isPending && deleteDraftMutation.variables === item.stockAdjustmentId}
-                                                            >
-                                                                Delete
-                                                            </Button>
-                                                        )}
-                                                    </div>
+                                                <td
+                                                    className="w-16 min-w-16 px-4 py-3 align-top whitespace-nowrap"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <Popover
+                                                        trigger={
+                                                            <span className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted">
+                                                                <EllipsisVertical className="size-4" />
+                                                            </span>
+                                                        }
+                                                        align="end"
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            {isDraftEditable && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openEditForm(item)}
+                                                                    className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                                                                >
+                                                                    Edit
+                                                                </button>
+                                                            )}
+                                                            {isDraftEditable && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (!window.confirm(`Delete ${item.adjustmentNumber}?`)) return
+                                                                        deleteDraftMutation.mutate(item.stockAdjustmentId)
+                                                                    }}
+                                                                    disabled={deleteDraftMutation.isPending && deleteDraftMutation.variables === item.stockAdjustmentId}
+                                                                    className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors"
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </Popover>
                                                 </td>
                                             </tr>
                                         )

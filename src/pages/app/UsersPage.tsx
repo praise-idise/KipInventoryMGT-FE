@@ -32,6 +32,7 @@ export function UsersPage() {
     const usersQuery = useQuery({
         queryKey: ['users', pageNumber, pageSize, searchTerm],
         queryFn: () => fetchUsers({ pageNumber, pageSize, searchTerm }),
+        staleTime: 0,
     })
 
     useEffect(() => {

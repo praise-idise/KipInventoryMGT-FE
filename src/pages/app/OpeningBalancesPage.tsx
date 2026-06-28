@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { getApiErrorMessage } from '@/api/types'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, toast } from '@/components/ui'
+import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, toast } from '@/components/ui'
 import { OPENING_BALANCE_STATUS } from '@/lib/domain-values'
 import { fetchProducts } from '@/services/products.service'
 import { createOpeningBalance, fetchOpeningBalances, type CreateOpeningBalanceRequest } from '@/services/opening-balances.service'
@@ -72,6 +72,7 @@ export function OpeningBalancesPage() {
     const balancesQuery = useQuery({
         queryKey: ['opening-balances', activeSearchTerm, pageNumber, pageSize],
         queryFn: () => fetchOpeningBalances({ pageNumber, pageSize, searchTerm: activeSearchTerm }),
+        staleTime: 0,
     })
 
     const warehousesQuery = useQuery({
@@ -356,27 +357,31 @@ export function OpeningBalancesPage() {
                                     <th className="px-4 py-3 font-medium whitespace-nowrap">Applied</th>
                                     <th className="px-4 py-3 font-medium whitespace-nowrap">Status</th>
                                     <th className="px-4 py-3 font-medium whitespace-nowrap">Lines</th>
-                                    <th className="w-56 min-w-56 px-4 py-3 font-medium whitespace-nowrap lg:sticky lg:right-0 lg:z-20 lg:border-l lg:border-border lg:bg-muted">
-                                        Actions
-                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
                                 {balancesQuery.isLoading ? (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                                        <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
                                             Loading...
                                         </td>
                                     </tr>
                                 ) : items.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                                        <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
                                             No opening balance records found.
                                         </td>
                                     </tr>
                                 ) : (
                                     items.map((item) => (
-                                        <tr key={item.openingBalanceId} className="bg-surface">
+                                        <tr
+                                            key={item.openingBalanceId}
+                                            className="bg-surface cursor-pointer hover:bg-muted/50 transition-colors"
+                                            onClick={() => navigate({
+                                                to: '/app/opening-balances/$openingBalanceId',
+                                                params: { openingBalanceId: item.openingBalanceId },
+                                            })}
+                                        >
                                             <td className="px-4 py-3 align-top">{item.openingBalanceNumber}</td>
                                             <td className="px-4 py-3 align-top">{warehouseNames[item.warehouseId] ?? item.warehouseId}</td>
                                             <td className="px-4 py-3 align-top">{new Date(item.appliedAt).toLocaleDateString()}</td>
@@ -384,21 +389,6 @@ export function OpeningBalancesPage() {
                                                 <Badge variant="success">{OPENING_BALANCE_STATUS.APPLIED}</Badge>
                                             </td>
                                             <td className="px-4 py-3 align-top">{item.lines?.length ?? 0}</td>
-                                            <td className="w-56 min-w-56 px-4 py-3 align-top whitespace-nowrap lg:sticky lg:right-0 lg:z-10 lg:border-l lg:border-border lg:bg-muted/50">
-                                                <div className="relative z-10 flex flex-nowrap gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        className="shrink-0"
-                                                        onClick={() => navigate({
-                                                            to: '/app/opening-balances/$openingBalanceId',
-                                                            params: { openingBalanceId: item.openingBalanceId },
-                                                        })}
-                                                    >
-                                                        View
-                                                    </Button>
-                                                </div>
-                                            </td>
                                         </tr>
                                     ))
                                 )}

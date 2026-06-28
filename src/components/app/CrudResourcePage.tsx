@@ -1,18 +1,36 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode, useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useForm, type DefaultValues, type FieldValues, type Path, type Resolver } from 'react-hook-form'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, useConfirm, toast } from '@/components/ui'
+import { Columns, EllipsisVertical, Filter, GripVertical } from 'lucide-react'
+import {
+    Badge,
+    Button,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+    Dialog,
+    Input,
+    Label,
+    Popover,
+    SearchableSelect,
+    Textarea,
+    useConfirm,
+    toast,
+} from '@/components/ui'
 import { getApiErrorMessage, type Pagination } from '@/api/types'
 import { cn } from '@/lib/cn'
 
-type CrudFieldType = 'text' | 'email' | 'number' | 'textarea' | 'checkbox' | 'select'
-type CrudFieldMode = 'create' | 'edit'
+type CrudFieldType = 'text' | 'email' | 'number' | 'textarea' | 'checkbox' | 'select' | 'searchableSelect'
 
-type CrudFieldOption = {
+export interface CrudFieldOption {
     label: string
     value: string
 }
+
+type CrudFieldMode = 'create' | 'edit'
 
 export interface CrudField<TForm extends FieldValues> {
     name: Path<TForm>
@@ -22,6 +40,8 @@ export interface CrudField<TForm extends FieldValues> {
     placeholder?: string
     options?: CrudFieldOption[]
     modes?: CrudFieldMode[]
+    onAddNew?: () => void
+    addNewLabel?: string
 }
 
 export interface CrudColumn<TItem> {
@@ -30,6 +50,8 @@ export interface CrudColumn<TItem> {
     className?: string
     truncate?: boolean
     title?: (item: TItem) => string | undefined
+    order?: number
+    minWidth?: string
 }
 
 interface FetchResult<TItem> {
@@ -56,6 +78,10 @@ interface CrudResourcePageProps<TItem, TForm extends FieldValues> {
     deleteItem: (item: TItem) => Promise<unknown>
     getDeleteLabel?: (item: TItem) => string
     getViewPath?: (item: TItem) => string
+    extraFormContent?: ReactNode | ((item: TItem | null) => ReactNode)
+    forceSubmit?: boolean
+    /** Item ID to auto-open edit for when data loads (used from detail page Edit button). */
+    initialEditItemId?: string
 }
 
 function getDirtyValues<TForm extends FieldValues>(values: TForm, dirtyFields: Record<string, unknown>): Partial<TForm> {
@@ -71,71 +97,22 @@ function getDirtyValues<TForm extends FieldValues>(values: TForm, dirtyFields: R
     return payload as Partial<TForm>
 }
 
-function renderField<TForm extends FieldValues>(
-    field: CrudField<TForm>,
-    register: ReturnType<typeof useForm<TForm>>['register'],
-    error?: string,
-) {
-    if (field.type === 'textarea') {
-        return (
-            <div className="space-y-2">
-                <Label htmlFor={field.name} required={field.required}>{field.label}</Label>
-                <Textarea id={field.name} placeholder={field.placeholder} error={Boolean(error)} {...register(field.name)} />
-                {error && <p className="text-xs text-destructive">{error}</p>}
-            </div>
-        )
+function loadColumnPrefs(queryKey: string, allHeaders: string[]) {
+    try {
+        const raw = localStorage.getItem(`columns-${queryKey}`)
+        if (!raw) return { visible: allHeaders, order: allHeaders }
+        const parsed = JSON.parse(raw) as { visible?: string[]; order?: string[] }
+        return {
+            visible: parsed.visible?.filter((h) => allHeaders.includes(h)) ?? allHeaders,
+            order: parsed.order?.filter((h) => allHeaders.includes(h)) ?? allHeaders,
+        }
+    } catch {
+        return { visible: allHeaders, order: allHeaders }
     }
+}
 
-    if (field.type === 'checkbox') {
-        return (
-            <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                <input type="checkbox" className="size-4 rounded border-input" {...register(field.name)} />
-                <span>
-                    {field.label}
-                    {field.required && <span className="ml-1 text-destructive" aria-hidden>*</span>}
-                </span>
-            </label>
-        )
-    }
-
-    if (field.type === 'select') {
-        return (
-            <div className="space-y-2">
-                <Label htmlFor={field.name} required={field.required}>{field.label}</Label>
-                <select
-                    id={field.name}
-                    className={cn(
-                        'h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground',
-                        'border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                        error && 'border-destructive'
-                    )}
-                    {...register(field.name)}
-                >
-                    <option value="">{field.placeholder ?? `Select ${field.label}`}</option>
-                    {(field.options ?? []).map((option) => (
-                        <option key={option.value} value={option.value}>
-                            {option.label}
-                        </option>
-                    ))}
-                </select>
-                {error && <p className="text-xs text-destructive">{error}</p>}
-            </div>
-        )
-    }
-
-    return (
-        <div className="space-y-2">
-            <Label htmlFor={field.name} required={field.required}>{field.label}</Label>
-            <Input
-                id={field.name}
-                type={field.type ?? 'text'}
-                placeholder={field.placeholder}
-                error={Boolean(error)}
-                {...register(field.name)}
-            />
-            {error && <p className="text-xs text-destructive">{error}</p>}
-        </div>
-    )
+function saveColumnPrefs(queryKey: string, visible: string[], order: string[]) {
+    localStorage.setItem(`columns-${queryKey}`, JSON.stringify({ visible, order }))
 }
 
 export function CrudResourcePage<TItem, TForm extends FieldValues>({
@@ -157,6 +134,9 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
     deleteItem,
     getDeleteLabel,
     getViewPath,
+    extraFormContent,
+    initialEditItemId,
+    forceSubmit,
 }: CrudResourcePageProps<TItem, TForm>) {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
@@ -167,6 +147,16 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
     const [mode, setMode] = useState<'create' | 'edit' | null>(null)
     const [selectedItem, setSelectedItem] = useState<TItem | null>(null)
+    const [filterDateFrom, setFilterDateFrom] = useState('')
+    const [filterDateTo, setFilterDateTo] = useState('')
+    const [activeDateFrom, setActiveDateFrom] = useState('')
+    const [activeDateTo, setActiveDateTo] = useState('')
+    const [showFilterModal, setShowFilterModal] = useState(false)
+    const [showColumnModal, setShowColumnModal] = useState(false)
+    const autoEditTriggered = useRef(false)
+    const [dragIdx, setDragIdx] = useState<number | null>(null)
+    const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
+
     const trimmedSearchInput = searchInput.trim()
     const activeSearchTerm = useMemo(
         () => (debouncedSearchTerm.length >= minSearchCharacters ? debouncedSearchTerm : ''),
@@ -177,15 +167,192 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
         [fields, mode],
     )
 
+    const sortedColumns = useMemo(() => {
+        return [...columns].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    }, [columns])
+
+    const hasTimestamps = true
+
+    const allColumnHeaders = useMemo(() => {
+        const headers = sortedColumns.map((c) => c.header)
+        if (hasTimestamps) {
+            headers.push('Created', 'Updated')
+        }
+        headers.push('__actions__')
+        return headers
+    }, [sortedColumns])
+
+    const [columnPrefs, setColumnPrefs] = useState(() =>
+        loadColumnPrefs(queryKey, allColumnHeaders),
+    )
+
+    useEffect(() => {
+        setColumnPrefs((prev) => {
+            const merged = loadColumnPrefs(queryKey, allColumnHeaders)
+            const newHeaders = allColumnHeaders.filter((h) => !merged.order.includes(h))
+            return {
+                visible: [...merged.visible, ...newHeaders.filter((h) => !merged.visible.includes(h))],
+                order: [...merged.order, ...newHeaders],
+            }
+        })
+    }, [allColumnHeaders, queryKey])
+
+    function persistColumnPrefs(visible: string[], order: string[]) {
+        setColumnPrefs({ visible, order })
+        saveColumnPrefs(queryKey, visible, order)
+    }
+
+    function toggleColumn(header: string) {
+        const visible = columnPrefs.visible.includes(header)
+            ? columnPrefs.visible.filter((h) => h !== header)
+            : [...columnPrefs.visible, header]
+        persistColumnPrefs(visible, columnPrefs.order)
+    }
+
+    function handleDragStart(idx: number) {
+        setDragIdx(idx)
+    }
+
+    function handleDragOver(e: React.DragEvent, idx: number) {
+        e.preventDefault()
+        if (dragIdx === null) return
+        setDragOverIdx(idx)
+    }
+
+    function handleDrop(idx: number) {
+        if (dragIdx === null || dragIdx === idx) {
+            setDragIdx(null)
+            setDragOverIdx(null)
+            return
+        }
+        const newOrder = [...columnPrefs.order]
+        const [moved] = newOrder.splice(dragIdx, 1)
+        newOrder.splice(idx, 0, moved)
+        persistColumnPrefs(columnPrefs.visible, newOrder)
+        setDragIdx(null)
+        setDragOverIdx(null)
+    }
+
+    function handleDragEnd() {
+        setDragIdx(null)
+        setDragOverIdx(null)
+    }
+
+    const visibleColumnHeaders = useMemo(() => {
+        return columnPrefs.order.filter((h) => columnPrefs.visible.includes(h))
+    }, [columnPrefs])
+
+    const filterByDate = useCallback(
+        (items: TItem[]) => {
+            if (!activeDateFrom && !activeDateTo) return items
+            return items.filter((item) => {
+                const createdAt = (item as any).createdAt as string | undefined
+                if (!createdAt) return true
+                const date = new Date(createdAt)
+                if (activeDateFrom && new Date(activeDateFrom) > date) return false
+                if (activeDateTo) {
+                    const endDate = new Date(activeDateTo)
+                    endDate.setHours(23, 59, 59, 999)
+                    if (endDate < date) return false
+                }
+                return true
+            })
+        },
+        [activeDateFrom, activeDateTo],
+    )
+
     const {
         register,
         handleSubmit,
         reset,
+        watch,
+        setValue,
         formState: { errors, isSubmitting, dirtyFields },
     } = useForm<TForm>({
         resolver: resolver as Resolver<TForm>,
         defaultValues: getDefaultValues(),
     })
+
+    function renderFieldInline(field: CrudField<TForm>, error?: string) {
+        if (field.type === 'searchableSelect') {
+            const currentValue = (watch(field.name) as string) ?? ''
+            return (
+                <div className="space-y-2">
+                    <Label required={field.required}>{field.label}</Label>
+                    <SearchableSelect
+                        options={(field.options ?? []).map((o) => ({ label: o.label, value: o.value }))}
+                        value={currentValue}
+                        onChange={(val) => setValue(field.name, val as any, { shouldDirty: true })}
+                        placeholder={field.placeholder ?? `Search ${field.label}...`}
+                        onAddNew={field.onAddNew}
+                        addNewLabel={field.addNewLabel}
+                    />
+                    {error && <p className="text-xs text-destructive">{error}</p>}
+                </div>
+            )
+        }
+
+        if (field.type === 'textarea') {
+            return (
+                <div className="space-y-2">
+                    <Label htmlFor={field.name as string} required={field.required}>{field.label}</Label>
+                    <Textarea id={field.name as string} placeholder={field.placeholder} error={Boolean(error)} {...register(field.name)} />
+                    {error && <p className="text-xs text-destructive">{error}</p>}
+                </div>
+            )
+        }
+
+        if (field.type === 'checkbox') {
+            return (
+                <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                    <input type="checkbox" className="size-4 rounded border-input" {...register(field.name)} />
+                    <span>
+                        {field.label}
+                        {field.required && <span className="ml-1 text-destructive" aria-hidden>*</span>}
+                    </span>
+                </label>
+            )
+        }
+
+        if (field.type === 'select') {
+            return (
+                <div className="space-y-2">
+                    <Label htmlFor={field.name as string} required={field.required}>{field.label}</Label>
+                    <select
+                        id={field.name as string}
+                        className={cn(
+                            'h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground',
+                            'border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                            error && 'border-destructive',
+                        )}
+                        {...register(field.name)}
+                    >
+                        <option value="">{field.placeholder ?? `Select ${field.label}`}</option>
+                        {(field.options ?? []).map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
+                    {error && <p className="text-xs text-destructive">{error}</p>}
+                </div>
+            )
+        }
+
+        return (
+            <div className="space-y-2">
+                <Label htmlFor={field.name as string} required={field.required}>{field.label}</Label>
+                <Input
+                    id={field.name as string}
+                    type={field.type ?? 'text'}
+                    placeholder={field.placeholder}
+                    error={Boolean(error)}
+                    {...register(field.name)}
+                />
+                {error && <p className="text-xs text-destructive">{error}</p>}
+            </div>
+        )
+    }
 
     useEffect(() => {
         const timeoutId = window.setTimeout(() => {
@@ -202,7 +369,18 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
     const listQuery = useQuery({
         queryKey: [queryKey, activeSearchTerm, pageNumber, pageSize],
         queryFn: () => fetchItems({ pageNumber, pageSize, searchTerm: activeSearchTerm }),
+        staleTime: 0,
     })
+
+    useEffect(() => {
+        if (!initialEditItemId || autoEditTriggered.current) return
+        const rawItems = listQuery.data?.data ?? []
+        const item = rawItems.find((i) => getItemId(i) === initialEditItemId)
+        if (item) {
+            autoEditTriggered.current = true
+            openEdit(item)
+        }
+    }, [initialEditItemId, listQuery.data?.data])
 
     const invalidate = () => queryClient.invalidateQueries({ queryKey: [queryKey] })
 
@@ -273,7 +451,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
         try {
             if (mode === 'edit' && selectedItem) {
                 const dirtyValues = getDirtyValues(values, dirtyFields as Record<string, unknown>)
-                if (Object.keys(dirtyValues).length === 0) {
+                if (Object.keys(dirtyValues).length === 0 && !forceSubmit) {
                     closeForm()
                     return
                 }
@@ -300,8 +478,29 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
         await deleteMutation.mutateAsync(item)
     }
 
+    function handleRowClick(item: TItem) {
+        if (getViewPath) {
+            navigate({ to: getViewPath(item) as never })
+        }
+    }
+
+    function applyFilter() {
+        setActiveDateFrom(filterDateFrom)
+        setActiveDateTo(filterDateTo)
+        setShowFilterModal(false)
+    }
+
+    function resetFilter() {
+        setFilterDateFrom('')
+        setFilterDateTo('')
+        setActiveDateFrom('')
+        setActiveDateTo('')
+        setShowFilterModal(false)
+    }
+
     const pagination = listQuery.data?.pagination
-    const items = listQuery.data?.data ?? []
+    const rawItems = listQuery.data?.data ?? []
+    const items = useMemo(() => filterByDate(rawItems), [rawItems, filterByDate])
 
     const pageSummary = useMemo(() => {
         if (!pagination) return 'No pagination data'
@@ -309,6 +508,10 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
         const currentPage = pagination.pageNumber ?? pagination.currentPage ?? 1
         return `Page ${currentPage} of ${pagination.totalPages}`
     }, [pagination])
+
+    const hasActiveFilter = activeDateFrom || activeDateTo
+
+    const totalColSpan = visibleColumnHeaders.length
 
     return (
         <main className="min-w-0 space-y-6">
@@ -337,10 +540,12 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
                             <div className="grid gap-4 md:grid-cols-2">
                                 {visibleFields.map((field) => (
                                     <div key={field.name as string} className={cn(field.type === 'textarea' && 'md:col-span-2')}>
-                                        {renderField(field, register, errors[field.name]?.message as string | undefined)}
+                                        {renderFieldInline(field, errors[field.name]?.message as string | undefined)}
                                     </div>
                                 ))}
                             </div>
+
+                            {typeof extraFormContent === 'function' ? (extraFormContent as (item: TItem | null) => ReactNode)(selectedItem) : extraFormContent}
 
                             <div className="flex flex-wrap gap-3">
                                 <Button type="submit" loading={isSubmitting || createMutation.isPending || updateMutation.isPending}>
@@ -368,7 +573,14 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
                             placeholder={searchPlaceholder}
                             className="md:max-w-sm"
                         />
-                        <p className="text-xs text-muted-foreground">{pageSummary}</p>
+                        <div className="flex items-center gap-2">
+                            {hasActiveFilter && (
+                                <Badge variant="outline" className="text-xs">
+                                    Filter active
+                                </Badge>
+                            )}
+                            <p className="text-xs text-muted-foreground">{pageSummary}</p>
+                        </div>
                     </div>
 
                     {trimmedSearchInput.length > 0 && trimmedSearchInput.length < minSearchCharacters && (
@@ -377,75 +589,244 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
                         </p>
                     )}
 
+                    {/* Toolbar — icon-only buttons */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setShowColumnModal(true)}
+                            className="inline-flex size-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            title="Manage columns"
+                        >
+                            <Columns className="size-4" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowFilterModal(true)}
+                            className="inline-flex size-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            title="Filter"
+                        >
+                            <Filter className="size-4" />
+                        </button>
+                    </div>
+
+                    {/* Column Manager Dialog — drag-and-drop with GripVertical */}
+                    <Dialog
+                        open={showColumnModal}
+                        onClose={() => setShowColumnModal(false)}
+                        title="Show columns"
+                        description="Toggle visibility and drag to reorder."
+                    >
+                        <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
+                            {columnPrefs.order.map((header, idx) => {
+                                if (header === '__actions__') return null
+                                const isVisible = columnPrefs.visible.includes(header)
+
+                                return (
+                                    <div
+                                        key={header}
+                                        draggable
+                                        onDragStart={() => handleDragStart(idx)}
+                                        onDragOver={(e) => handleDragOver(e, idx)}
+                                        onDrop={() => handleDrop(idx)}
+                                        onDragEnd={handleDragEnd}
+                                        className={cn(
+                                            'flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm transition-all duration-200 ease-in-out',
+                                            dragIdx === idx && 'opacity-40',
+                                            dragOverIdx === idx && dragIdx !== idx && 'border-t-2 border-t-primary',
+                                        )}
+                                    >
+                                        <button
+                                            type="button"
+                                            className="cursor-grab p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing touch-none"
+                                            title="Drag to reorder"
+                                        >
+                                            <GripVertical className="size-4" />
+                                        </button>
+                                        <label className="flex flex-1 cursor-pointer items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={isVisible}
+                                                onChange={() => toggleColumn(header)}
+                                                className="size-4 shrink-0 rounded border-input"
+                                            />
+                                            <span>{header}</span>
+                                        </label>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </Dialog>
+
+                    {/* Filter Dialog */}
+                    <Dialog
+                        open={showFilterModal}
+                        onClose={() => setShowFilterModal(false)}
+                        title="Filter Records"
+                        description="Apply date range and other filters."
+                    >
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>Created From</Label>
+                                <Input
+                                    type="date"
+                                    value={filterDateFrom}
+                                    onChange={(e) => setFilterDateFrom(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Created To</Label>
+                                <Input
+                                    type="date"
+                                    value={filterDateTo}
+                                    onChange={(e) => setFilterDateTo(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                <Button onClick={applyFilter}>Apply Filter</Button>
+                                <Button variant="outline" onClick={resetFilter}>Reset</Button>
+                            </div>
+                        </div>
+                    </Dialog>
+
                     <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border">
                         <table className="w-max min-w-full table-auto divide-y divide-border text-sm">
                             <thead className="bg-muted/40 text-left text-muted-foreground">
                                 <tr>
-                                    {columns.map((column) => (
-                                        <th key={column.header} className={cn('px-4 py-3 font-medium whitespace-nowrap', column.className)}>
-                                            {column.header}
-                                        </th>
-                                    ))}
-                                    <th className="w-56 min-w-56 px-4 py-3 font-medium whitespace-nowrap lg:sticky lg:right-0 lg:z-20 lg:border-l lg:border-border lg:bg-muted">
-                                        Actions
-                                    </th>
+                                    {visibleColumnHeaders.map((header) => {
+                                        if (header === '__actions__') {
+                                            return (
+                                                <th
+                                                    key={header}
+                                                    className="w-16 min-w-16 px-4 py-3 font-medium whitespace-nowrap"
+                                                >
+                                                    Actions
+                                                </th>
+                                            )
+                                        }
+                                        if (header === 'Created') {
+                                            return (
+                                                <th key={header} className="w-28 min-w-28 px-4 py-3 font-medium whitespace-nowrap">
+                                                    Created
+                                                </th>
+                                            )
+                                        }
+                                        if (header === 'Updated') {
+                                            return (
+                                                <th key={header} className="w-28 min-w-28 px-4 py-3 font-medium whitespace-nowrap">
+                                                    Updated
+                                                </th>
+                                            )
+                                        }
+                                        const col = sortedColumns.find((c) => c.header === header)
+                                        return (
+                                            <th
+                                                key={header}
+                                                className={cn('px-4 py-3 font-medium whitespace-nowrap', col?.className, col?.minWidth)}
+                                            >
+                                                {header}
+                                            </th>
+                                        )
+                                    })}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
                                 {listQuery.isLoading ? (
                                     <tr>
-                                        <td colSpan={columns.length + 1} className="px-4 py-6 text-center text-muted-foreground">
+                                        <td colSpan={totalColSpan} className="px-4 py-6 text-center text-muted-foreground">
                                             Loading...
                                         </td>
                                     </tr>
                                 ) : items.length === 0 ? (
                                     <tr>
-                                        <td colSpan={columns.length + 1} className="px-4 py-6 text-center text-muted-foreground">
+                                        <td colSpan={totalColSpan} className="px-4 py-6 text-center text-muted-foreground">
                                             No {entityLabel.toLowerCase()} records found.
                                         </td>
                                     </tr>
                                 ) : (
                                     items.map((item) => (
-                                        <tr key={getItemId(item)} className="bg-surface">
-                                            {columns.map((column) => (
-                                                <td key={column.header} className={cn('px-4 py-3 align-top', column.className)}>
-                                                    <div
-                                                        className={cn(
-                                                            'block',
-                                                            column.truncate && 'max-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
-                                                        )}
-                                                        title={column.title?.(item)}
-                                                    >
-                                                        {column.render(item)}
-                                                    </div>
-                                                </td>
-                                            ))}
-                                            <td className="w-56 min-w-56 px-4 py-3 align-top whitespace-nowrap lg:sticky lg:right-0 lg:z-10 lg:border-l lg:border-border lg:bg-muted/50">
-                                                <div className="relative z-10 flex flex-nowrap gap-2">
-                                                    {getViewPath && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            className="shrink-0"
-                                                            onClick={() => navigate({ to: getViewPath(item) as never })}
+                                        <tr
+                                            key={getItemId(item)}
+                                            className={cn('bg-surface', getViewPath && 'cursor-pointer hover:bg-muted/50 transition-colors')}
+                                            onClick={() => handleRowClick(item)}
+                                        >
+                                            {visibleColumnHeaders.map((header) => {
+                                                if (header === '__actions__') {
+                                                    return (
+                                                        <td
+                                                            key={header}
+                                                            className="w-16 min-w-16 px-4 py-3 align-top whitespace-nowrap"
+                                                            onClick={(e) => e.stopPropagation()}
                                                         >
-                                                            View
-                                                        </Button>
-                                                    )}
-                                                    <Button size="sm" variant="outline" className="shrink-0" onClick={() => openEdit(item)}>
-                                                        Edit
-                                                    </Button>
-                                                    <Button size="sm" variant="destructive" className="shrink-0" onClick={() => handleDelete(item)}>
-                                                        Delete
-                                                    </Button>
-                                                </div>
-                                            </td>
+                                                            <Popover
+                                                                trigger={
+                                                                    <span className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted">
+                                                                        <EllipsisVertical className="size-4" />
+                                                                    </span>
+                                                                }
+                                                                align="end"
+                                                            >
+                                                                <div className="flex flex-col">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => openEdit(item)}
+                                                                        className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                                                                    >
+                                                                        Edit
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDelete(item)}
+                                                                        className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors"
+                                                                    >
+                                                                        Delete
+                                                                    </button>
+                                                                </div>
+                                                            </Popover>
+                                                        </td>
+                                                    )
+                                                }
+
+                                                if (header === 'Created') {
+                                                    return (
+                                                        <td key={header} className="w-28 min-w-28 px-4 py-3 align-top whitespace-nowrap text-muted-foreground">
+                                                            {formatDate((item as any).createdAt)}
+                                                        </td>
+                                                    )
+                                                }
+
+                                                if (header === 'Updated') {
+                                                    return (
+                                                        <td key={header} className="w-28 min-w-28 px-4 py-3 align-top whitespace-nowrap text-muted-foreground">
+                                                            {formatDate((item as any).updatedAt)}
+                                                        </td>
+                                                    )
+                                                }
+
+                                                const col = sortedColumns.find((c) => c.header === header)
+                                                if (!col) return <td key={header} className="px-4 py-3" />
+
+                                                return (
+                                                    <td
+                                                        key={header}
+                                                        className={cn('px-4 py-3 align-top', col.className, col.minWidth)}
+                                                    >
+                                                        <div
+                                                            className={cn(
+                                                                'block',
+                                                                col.truncate && !col.minWidth && 'max-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
+                                                            )}
+                                                            title={col.title?.(item)}
+                                                        >
+                                                            {col.render(item)}
+                                                        </div>
+                                                    </td>
+                                                )
+                                            })}
                                         </tr>
                                     ))
                                 )}
                             </tbody>
                         </table>
-
                     </div>
 
                     <div className="flex items-center justify-between">
@@ -469,4 +850,13 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
             {dialog}
         </main>
     )
+}
+
+function formatDate(value: string | undefined | null): string {
+    if (!value) return '—'
+    try {
+        return new Date(value).toLocaleDateString()
+    } catch {
+        return '—'
+    }
 }

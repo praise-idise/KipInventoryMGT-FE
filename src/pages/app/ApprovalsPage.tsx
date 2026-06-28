@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
 import {
     APPROVAL_DECISION_STATUS,
@@ -43,6 +43,7 @@ export function ApprovalsPage() {
     const approvalsQuery = useQuery({
         queryKey: ['approvals', status, pageNumber, pageSize],
         queryFn: () => fetchApprovals({ pageNumber, pageSize, status }),
+        staleTime: 0,
     })
 
     const totalRecords = approvalsQuery.data?.pagination.totalRecords ?? 0
@@ -90,14 +91,21 @@ export function ApprovalsPage() {
                                         <th className="px-4 py-3 font-medium whitespace-nowrap">Requested</th>
                                         <th className="px-4 py-3 font-medium whitespace-nowrap">Decided</th>
                                         <th className="px-4 py-3 font-medium whitespace-nowrap">Status</th>
-                                        <th className="w-56 min-w-56 px-4 py-3 font-medium whitespace-nowrap lg:sticky lg:right-0 lg:z-20 lg:border-l lg:border-border lg:bg-muted">
-                                            Actions
-                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
                                     {approvalsQuery.data.data.map((item) => (
-                                        <tr key={item.approvalRequestId} className="bg-surface">
+                                        <tr
+                                            key={item.approvalRequestId}
+                                            className="bg-surface cursor-pointer hover:bg-muted/50 transition-colors"
+                                            onClick={() => navigate({
+                                                to: '/app/approvals/$documentType/$documentId',
+                                                params: {
+                                                    documentType: item.documentType,
+                                                    documentId: item.documentId,
+                                                },
+                                            })}
+                                        >
                                             <td className="px-4 py-3 align-top">
                                                 <div className="space-y-1">
                                                     <p className="font-medium text-foreground">{getDocumentLabel(item.documentType)}</p>
@@ -112,24 +120,6 @@ export function ApprovalsPage() {
                                                 <Badge variant="outline" className={getStatusBadgeClassName(item.status)}>
                                                     {formatStatusLabel(item.status)}
                                                 </Badge>
-                                            </td>
-                                            <td className="w-56 min-w-56 px-4 py-3 align-top whitespace-nowrap lg:sticky lg:right-0 lg:z-10 lg:border-l lg:border-border lg:bg-muted/50">
-                                                <div className="relative z-10 flex flex-nowrap gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        className="shrink-0"
-                                                        onClick={() => navigate({
-                                                            to: '/app/approvals/$documentType/$documentId',
-                                                            params: {
-                                                                documentType: item.documentType,
-                                                                documentId: item.documentId,
-                                                            },
-                                                        })}
-                                                    >
-                                                        View
-                                                    </Button>
-                                                </div>
                                             </td>
                                         </tr>
                                     ))}
