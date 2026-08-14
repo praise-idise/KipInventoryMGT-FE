@@ -91,3 +91,33 @@ export async function fetchWarehouseById(warehouseId: string) {
   );
   return response.data;
 }
+
+export async function fetchWarehouseInventory(
+  warehouseId: string,
+  args: { pageNumber: number; pageSize: number },
+) {
+  return apiClient.getPaginated<WarehouseInventoryItem>(
+    `/Warehouses/${warehouseId}/inventory`,
+    args,
+  );
+}
+
+export async function fetchAllWarehouseInventory(warehouseId: string) {
+  // The server caps pages at 100 rows, so walk every page to avoid silently
+  // dropping products from selectors when a warehouse holds more than that.
+  const items: WarehouseInventoryItem[] = [];
+  let pageNumber = 1;
+
+  for (;;) {
+    const response = await apiClient.getPaginated<WarehouseInventoryItem>(
+      `/Warehouses/${warehouseId}/inventory`,
+      { pageNumber, pageSize: 100 },
+    );
+    items.push(...(response.data ?? []));
+    const totalPages = response.pagination?.totalPages ?? 1;
+    if (pageNumber >= totalPages) break;
+    pageNumber += 1;
+  }
+
+  return items;
+}

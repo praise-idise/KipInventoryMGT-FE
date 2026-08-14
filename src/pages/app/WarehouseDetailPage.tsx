@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { getStatusBadgeClassName } from '@/lib/status-badge'
-import { fetchWarehouseById } from '@/services/warehouses.service'
+import { fetchWarehouseById, fetchWarehouseInventory } from '@/services/warehouses.service'
 
 type TabId = 'overview' | 'inventory'
 
@@ -18,13 +18,21 @@ export function WarehouseDetailPage() {
     const { warehouseId } = useParams({ strict: false }) as { warehouseId: string }
     const navigate = useNavigate()
     const [activeTab, setActiveTab] = useState<TabId>('overview')
+    const [inventoryPage, setInventoryPage] = useState(1)
     const detailQuery = useQuery({
         queryKey: ['warehouse-detail', warehouseId],
         queryFn: () => fetchWarehouseById(warehouseId),
         staleTime: 0,
     })
+    const inventoryQuery = useQuery({
+        queryKey: ['warehouse-inventory', warehouseId, inventoryPage],
+        queryFn: () => fetchWarehouseInventory(warehouseId, { pageNumber: inventoryPage, pageSize: 10 }),
+        staleTime: 0,
+    })
 
     const warehouse = detailQuery.data
+    const inventoryItems = inventoryQuery.data?.data ?? []
+    const inventoryTotalPages = inventoryQuery.data?.pagination?.totalPages ?? 1
 
     return (
         <main className="space-y-6">
@@ -94,7 +102,11 @@ export function WarehouseDetailPage() {
                                 <CardTitle>Inventory Items</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                {!warehouse.inventoryItems || warehouse.inventoryItems.length === 0 ? (
+                                {inventoryQuery.isLoading ? (
+                                    <p className="text-sm text-muted-foreground">Loading inventory items...</p>
+                                ) : inventoryQuery.isError ? (
+                                    <p className="text-sm text-destructive">Unable to load inventory items.</p>
+                                ) : inventoryItems.length === 0 ? (
                                     <p className="text-sm text-muted-foreground">No inventory items currently attached to this warehouse.</p>
                                 ) : (
                                     <div className="overflow-x-auto rounded-lg border border-border">
@@ -109,7 +121,7 @@ export function WarehouseDetailPage() {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-border">
-                                                {warehouse.inventoryItems.map((item) => (
+                                                {inventoryItems.map((item) => (
                                                     <tr key={item.productId}>
                                                         <td className="px-4 py-3">{item.productName}</td>
                                                         <td className="px-4 py-3">{item.sku}</td>
@@ -120,6 +132,27 @@ export function WarehouseDetailPage() {
                                                 ))}
                                             </tbody>
                                         </table>
+                                    </div>
+                                )}
+                                {inventoryTotalPages > 1 && (
+                                    <div className="flex items-center justify-between pt-4">
+                                        <Button
+                                            variant="outline"
+                                            disabled={inventoryPage <= 1}
+                                            onClick={() => setInventoryPage((page) => page - 1)}
+                                        >
+                                            Previous
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Page {inventoryPage} of {inventoryTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            disabled={inventoryPage >= inventoryTotalPages}
+                                            onClick={() => setInventoryPage((page) => page + 1)}
+                                        >
+                                            Next
+                                        </Button>
                                     </div>
                                 )}
                             </CardContent>

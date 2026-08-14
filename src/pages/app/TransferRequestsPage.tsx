@@ -16,7 +16,7 @@ import {
     type TransferRequestItem,
     updateTransferRequestDraft,
 } from '@/services/transfer-requests.service'
-import { fetchWarehouseById, fetchWarehouses } from '@/services/warehouses.service'
+import { fetchAllWarehouseInventory, fetchWarehouses } from '@/services/warehouses.service'
 
 type TransferLineDraft = {
     id: string
@@ -109,10 +109,10 @@ export function TransferRequestsPage() {
         queryFn: () => fetchProducts({ pageNumber: 1, pageSize: 500, searchTerm: '' }),
     })
 
-    const sourceWarehouseDetailQuery = useQuery({
-        queryKey: ['warehouse-detail', formState.sourceWarehouseId],
+    const sourceWarehouseInventoryQuery = useQuery({
+        queryKey: ['warehouse-inventory', 'all', formState.sourceWarehouseId],
         enabled: Boolean(formState.sourceWarehouseId),
-        queryFn: () => fetchWarehouseById(formState.sourceWarehouseId),
+        queryFn: () => fetchAllWarehouseInventory(formState.sourceWarehouseId),
     })
 
     const refreshTransfers = async () => {
@@ -120,6 +120,7 @@ export function TransferRequestsPage() {
             queryClient.invalidateQueries({ queryKey: ['transfer-requests'] }),
             queryClient.invalidateQueries({ queryKey: ['approvals'] }),
             queryClient.invalidateQueries({ queryKey: ['warehouse-detail'] }),
+            queryClient.invalidateQueries({ queryKey: ['warehouse-inventory'] }),
             queryClient.invalidateQueries({ queryKey: ['transfer-request-detail'] }),
         ])
     }
@@ -169,8 +170,8 @@ export function TransferRequestsPage() {
     }, [productsQuery.data])
 
     const sourceWarehouseInventory = useMemo(() => {
-        return (sourceWarehouseDetailQuery.data?.inventoryItems ?? []).filter((item) => item.availableQuantity > 0)
-    }, [sourceWarehouseDetailQuery.data])
+        return (sourceWarehouseInventoryQuery.data ?? []).filter((item) => item.availableQuantity > 0)
+    }, [sourceWarehouseInventoryQuery.data])
 
     const sourceWarehouseProductNames = useMemo(() => {
         return Object.fromEntries(sourceWarehouseInventory.map((item) => [item.productId, `${item.productName} (${item.sku})`]))
