@@ -12,6 +12,7 @@ export interface SignupRequest {
   firstName: string;
   lastName: string;
   phoneNumber?: string;
+  organizationName?: string;
 }
 
 export interface ForgotPasswordRequest {
@@ -51,8 +52,12 @@ export async function login(payload: LoginRequest) {
   return apiClient.post<LoginResponse>("/Auth/login", payload);
 }
 
+export interface SignupResponse {
+  emailConfirmed: boolean;
+}
+
 export async function signup(payload: SignupRequest) {
-  return apiClient.post<null>("/Auth/signup", payload);
+  return apiClient.post<SignupResponse>("/Auth/signup", payload);
 }
 
 export async function logout() {

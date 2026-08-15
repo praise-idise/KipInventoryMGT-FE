@@ -61,3 +61,7 @@ export async function updateUserRoles(userId: string, roles: AppRole[]) {
     { roles },
   );
 }
+
+export async function removeUserFromOrganization(userId: string) {
+  return apiClient.post<null>(`/Users/${encodeURIComponent(userId)}/remove`, {});
+}

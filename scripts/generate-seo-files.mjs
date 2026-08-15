@@ -23,15 +23,11 @@ const siteUrl = normalizeSiteUrl(
 
 const indexPath = resolve('index.html')
 const canonicalUrl = `${siteUrl}/`
-const socialImageUrl = `${siteUrl}/og-image.png`
 
 const indexHtml = readFileSync(indexPath, 'utf8')
 const nextIndexHtml = indexHtml
   .replace(/<link rel="canonical" href="[^"]*"\s*\/>/, `<link rel="canonical" href="${canonicalUrl}" />`)
   .replace(/<meta property="og:url" content="[^"]*"\s*\/>/, `<meta property="og:url" content="${canonicalUrl}" />`)
-  .replace(/<meta property="og:image" content="[^"]*"\s*\/>/, `<meta property="og:image" content="${socialImageUrl}" />`)
-  .replace(/<meta name="twitter:image" content="[^"]*"\s*\/>/, `<meta name="twitter:image" content="${socialImageUrl}" />`)
-  .replace(/"logo"\s*:\s*"[^"]*"/, `"logo": "${socialImageUrl}"`)
 
 if (nextIndexHtml !== indexHtml) {
   writeFileSync(indexPath, nextIndexHtml, 'utf8')

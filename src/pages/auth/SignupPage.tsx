@@ -1,9 +1,11 @@
+import { useMemo } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { isApiError } from '@/api/types'
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, PasswordInput, toast } from '@/components/ui'
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, PasswordInput } from '@/components/ui'
+import { useAuth } from '@/hooks/use-auth'
 import { signup } from '@/services/auth.service'
 
 const schema = z.object({
@@ -18,6 +20,7 @@ const schema = z.object({
         .refine((value) => !value || /^\+[1-9]\d{7,14}$/.test(value), {
             message: 'Phone number must be in international format (e.g. +2348012345678).',
         }),
+    organizationName: z.string().trim().max(200, 'Organization name cannot exceed 200 characters.'),
     password: z.string().min(8, 'Password must be at least 8 characters.'),
     confirmPassword: z.string().min(1, 'Please confirm your password.'),
 }).refine((values) => values.password === values.confirmPassword, {
@@ -29,6 +32,25 @@ type SignupFormValues = z.infer<typeof schema>
 
 export function SignupPage() {
     const navigate = useNavigate()
+    const { login } = useAuth()
+    const search = useSearch({ strict: false }) as { email?: string }
+    const invitedEmail = search.email?.trim() ?? ''
+
+    // Organization name is required for fresh signups (they create an
+    // organization) but must not block invitees, for whom the field is hidden.
+    const signupSchema = useMemo(() => {
+        if (invitedEmail) return schema
+
+        return schema.superRefine((values, ctx) => {
+            if (!values.organizationName.trim()) {
+                ctx.addIssue({
+                    code: 'custom',
+                    message: 'Organization name is required.',
+                    path: ['organizationName'],
+                })
+            }
+        })
+    }, [invitedEmail])
 
     const {
         register,
@@ -37,12 +59,13 @@ export function SignupPage() {
         clearErrors,
         setError,
     } = useForm<SignupFormValues>({
-        resolver: zodResolver(schema),
+        resolver: zodResolver(signupSchema),
         defaultValues: {
             firstName: '',
             lastName: '',
-            email: '',
+            email: invitedEmail,
             phoneNumber: '',
+            organizationName: '',
             password: '',
             confirmPassword: '',
         },
@@ -57,11 +80,18 @@ export function SignupPage() {
                 lastName: values.lastName.trim(),
                 email: values.email.trim(),
                 phoneNumber: values.phoneNumber?.trim() || undefined,
+                organizationName: values.organizationName?.trim() || undefined,
                 password: values.password,
             })
 
-            toast.success(response.message || 'Account created. Please check your email to verify your account.')
-            navigate({ to: '/auth/login' })
+            if (response.data?.emailConfirmed) {
+                // Invited accounts are pre-verified — sign them straight in.
+                await login({ email: values.email.trim(), password: values.password })
+                navigate({ to: '/app/dashboard' })
+                return
+            }
+
+            navigate({ to: '/auth/check-email', search: { email: values.email.trim() } })
         } catch (error) {
             if (isApiError(error)) {
                 setError('root', { message: error.message || 'Unable to create account.' })
@@ -111,6 +141,19 @@ export function SignupPage() {
                         />
                         {errors.phoneNumber && <p className="text-xs text-destructive">{errors.phoneNumber.message}</p>}
                     </div>
+
+                    {!invitedEmail && (
+                        <div className="space-y-2">
+                            <Label htmlFor="organizationName" required>Organization name</Label>
+                            <Input
+                                id="organizationName"
+                                placeholder="Apex Distribution Limited"
+                                error={Boolean(errors.organizationName)}
+                                {...register('organizationName')}
+                            />
+                            {errors.organizationName && <p className="text-xs text-destructive">{errors.organizationName.message}</p>}
+                        </div>
+                    )}
 
                     <div className="space-y-2">
                         <Label htmlFor="password" required>Password</Label>

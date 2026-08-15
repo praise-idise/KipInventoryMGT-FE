@@ -7,8 +7,9 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Dialog, Input,
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/hooks/use-auth'
 import { getStatusBadgeClassName } from '@/lib/status-badge'
-import { activateUser, deactivateUser, fetchUsers, revokeUserSessions, updateUserRoles } from '@/services/users.service'
+import { activateUser, deactivateUser, fetchUsers, removeUserFromOrganization, revokeUserSessions, updateUserRoles } from '@/services/users.service'
 import { createRole, deleteRole, fetchRoles, updateRole, type RoleItem } from '@/services/roles.service'
+import { fetchInvitations, inviteMember, revokeInvitation } from '@/services/organizations.service'
 
 const ROLE_OPTIONS: AppRole[] = [
     APP_ROLES.USER,
@@ -18,10 +19,11 @@ const ROLE_OPTIONS: AppRole[] = [
     APP_ROLES.ADMIN,
 ]
 
-type TabId = 'users' | 'roles'
+type TabId = 'users' | 'invitations' | 'roles'
 
 const TABS: { id: TabId; label: string }[] = [
     { id: 'users', label: 'Users' },
+    { id: 'invitations', label: 'Invitations' },
     { id: 'roles', label: 'Roles' },
 ]
 
@@ -110,6 +112,79 @@ export function UsersPage() {
         },
         onError: (error) => { toast.error(getApiErrorMessage(error, 'Unable to delete role.')) },
     })
+
+    const [inviteEmail, setInviteEmail] = useState('')
+    const [inviteRole, setInviteRole] = useState<AppRole>(APP_ROLES.WAREHOUSE_OFFICER)
+
+    const invitationsQuery = useQuery({
+        queryKey: ['invitations', 'options'],
+        queryFn: () => fetchInvitations({ pageNumber: 1, pageSize: 100 }),
+        staleTime: 0,
+    })
+
+    const inviteMutation = useMutation({
+        mutationFn: () => inviteMember({ email: inviteEmail.trim(), role: inviteRole }),
+        onSuccess: async (response) => {
+            setInviteEmail('')
+            await queryClient.invalidateQueries({ queryKey: ['invitations'] })
+            toast.success(response.message || 'Invitation sent.')
+        },
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, 'Unable to send invitation.'))
+        },
+    })
+
+    const revokeInvitationMutation = useMutation({
+        mutationFn: revokeInvitation,
+        onSuccess: async (response) => {
+            await queryClient.invalidateQueries({ queryKey: ['invitations'] })
+            toast.success(response.message || 'Invitation revoked.')
+        },
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, 'Unable to revoke invitation.'))
+        },
+    })
+
+    const removeUserMutation = useMutation({
+        mutationFn: removeUserFromOrganization,
+        onSuccess: async (response) => {
+            await queryClient.invalidateQueries({ queryKey: ['users'] })
+            toast.success(response.message || 'User removed from the organization.')
+        },
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, 'Unable to remove user.'))
+        },
+    })
+
+    async function handleInvite() {
+        if (!inviteEmail.trim()) {
+            toast.error('Enter the email address to invite.')
+            return
+        }
+        await inviteMutation.mutateAsync()
+    }
+
+    async function handleRevokeInvitation(invitationId: string, email: string) {
+        const confirmed = await confirm({
+            title: 'Revoke Invitation',
+            description: `Revoke the pending invitation sent to ${email}?`,
+            confirmLabel: 'Revoke',
+            variant: 'danger',
+        })
+        if (!confirmed) return
+        await revokeInvitationMutation.mutateAsync(invitationId)
+    }
+
+    async function handleRemoveUser(userId: string, userLabel: string) {
+        const confirmed = await confirm({
+            title: 'Remove from Organization',
+            description: `Remove ${userLabel} from this organization? Their access is revoked and they lose all roles.`,
+            confirmLabel: 'Remove',
+            variant: 'danger',
+        })
+        if (!confirmed) return
+        await removeUserMutation.mutateAsync(userId)
+    }
 
     const rolesMutation = useMutation({
         mutationFn: ({ userId, roles }: { userId: string; roles: AppRole[] }) => updateUserRoles(userId, roles),
@@ -337,6 +412,13 @@ export function UsersPage() {
                                                                 >
                                                                     Revoke Sessions
                                                                 </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveUser(item.userId, userLabel)}
+                                                                    className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors"
+                                                                >
+                                                                    Remove from Organization
+                                                                </button>
                                                             </div>
                                                         </Popover>
                                                     </td>
@@ -364,6 +446,95 @@ export function UsersPage() {
                             >
                                 Next
                             </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {activeTab === 'invitations' && (
+                <Card className="bg-surface/95">
+                    <CardHeader>
+                        <CardTitle>Invite Members</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex flex-wrap items-end gap-3">
+                            <div className="space-y-2">
+                                <Label htmlFor="inviteEmail" required>Email address</Label>
+                                <Input
+                                    id="inviteEmail"
+                                    type="email"
+                                    value={inviteEmail}
+                                    onChange={(e) => setInviteEmail(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleInvite() }}
+                                    placeholder="teammate@example.com"
+                                    className="md:min-w-72"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="inviteRole" required>Role</Label>
+                                <select
+                                    id="inviteRole"
+                                    value={inviteRole}
+                                    onChange={(e) => setInviteRole(e.target.value as AppRole)}
+                                    className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                                >
+                                    {ROLE_OPTIONS.map((role) => (
+                                        <option key={role} value={role}>{role}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <Button onClick={handleInvite} loading={inviteMutation.isPending}>
+                                Send Invitation
+                            </Button>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-lg border border-border">
+                            <table className="w-max min-w-full divide-y divide-border text-sm">
+                                <thead className="bg-muted/40 text-left text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 font-medium">Email</th>
+                                        <th className="px-4 py-3 font-medium">Role</th>
+                                        <th className="px-4 py-3 font-medium">Invited By</th>
+                                        <th className="px-4 py-3 font-medium">Status</th>
+                                        <th className="px-4 py-3 font-medium">Expires</th>
+                                        <th className="w-16 px-4 py-3 font-medium">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {invitationsQuery.isLoading ? (
+                                        <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Loading invitations...</td></tr>
+                                    ) : (invitationsQuery.data?.data ?? []).length === 0 ? (
+                                        <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">No invitations sent yet.</td></tr>
+                                    ) : (
+                                        (invitationsQuery.data?.data ?? []).map((invitation) => (
+                                            <tr key={invitation.organizationInvitationId} className="bg-surface">
+                                                <td className="px-4 py-3 font-medium">{invitation.email}</td>
+                                                <td className="px-4 py-3">{invitation.role}</td>
+                                                <td className="px-4 py-3">{invitation.invitedBy || '—'}</td>
+                                                <td className="px-4 py-3">
+                                                    <Badge variant="outline" className={getStatusBadgeClassName(invitation.status)}>
+                                                        {invitation.status}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-4 py-3 text-muted-foreground">
+                                                    {new Date(invitation.expiresAt).toLocaleDateString()}
+                                                </td>
+                                                <td className="w-16 px-4 py-3">
+                                                    {invitation.status === 'Pending' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRevokeInvitation(invitation.organizationInvitationId, invitation.email)}
+                                                            className="text-sm text-destructive hover:underline"
+                                                        >
+                                                            Revoke
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </CardContent>
                 </Card>
@@ -426,7 +597,7 @@ export function UsersPage() {
                 const hasChanges = JSON.stringify(draftRoles.sort()) !== JSON.stringify([...editingUser.roles].sort())
 
                 return (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setEditingRolesFor(null)}>
+                    <div className="fixed inset-0 z-200 flex items-center justify-center p-4" onClick={() => setEditingRolesFor(null)}>
                         <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm" />
                         <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
                             <h2 className="text-lg font-semibold mb-2">Edit Roles</h2>

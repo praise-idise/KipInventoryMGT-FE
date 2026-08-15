@@ -38,6 +38,8 @@ import { ResetPasswordPage } from "@/pages/auth/ResetPasswordPage";
 import { ResendVerificationPage } from "@/pages/auth/ResendVerificationPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { VerifyEmailPage } from "@/pages/auth/VerifyEmailPage";
+import { AcceptInvitationPage } from "@/pages/auth/AcceptInvitationPage";
+import { CheckEmailPage } from "@/pages/auth/CheckEmailPage";
 import { TransferRequestsPage } from "./pages/app/TransferRequestsPage";
 import { SignupPage } from "./pages/auth/SignupPage";
 
@@ -73,11 +75,24 @@ const signupRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: "/signup",
   component: SignupPage,
+  // email is optional so plain Link/navigate calls without search stay valid.
+  validateSearch: (search): { email?: string } => ({
+    email: (search as { email?: string }).email,
+  }),
   beforeLoad: () => {
     if (isAuthenticated()) {
       throw redirect({ to: "/app/dashboard" });
     }
   },
+});
+
+const checkEmailRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: "/check-email",
+  component: CheckEmailPage,
+  validateSearch: (search): { email?: string } => ({
+    email: (search as { email?: string }).email,
+  }),
 });
 
 const forgotPasswordRoute = createRoute({
@@ -104,6 +119,20 @@ const resendVerificationRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: "/resend-verification",
   component: ResendVerificationPage,
+});
+
+const acceptInvitationRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: "/accept-invitation",
+  component: AcceptInvitationPage,
+});
+
+const acceptInvitationAliasRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/accept-invitation",
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/auth/accept-invitation", search });
+  },
 });
 
 const verifyEmailRoute = createRoute({
@@ -293,13 +322,16 @@ const routeTree = rootRoute.addChildren([
   landingRoute,
   resetPasswordAliasRoute,
   verifyEmailAliasRoute,
+  acceptInvitationAliasRoute,
   authLayoutRoute.addChildren([
     loginRoute,
     signupRoute,
+    checkEmailRoute,
     forgotPasswordRoute,
     resetPasswordRoute,
     resendVerificationRoute,
     verifyEmailRoute,
+    acceptInvitationRoute,
   ]),
   appShellRoute.addChildren([
     dashboardRoute,

@@ -17,6 +17,7 @@ const statusBadgeClassMap: Record<string, string> = {
   received: badgeToneClassMap.success,
   completed: badgeToneClassMap.success,
   applied: badgeToneClassMap.success,
+  accepted: badgeToneClassMap.success,
   changesrequested: badgeToneClassMap.danger,
   rejected: badgeToneClassMap.danger,
   cancelled: badgeToneClassMap.danger,

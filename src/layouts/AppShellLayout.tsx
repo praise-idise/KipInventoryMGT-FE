@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { Boxes, ChevronDown, LogOut, Menu, Monitor, Moon, Sun, X } from 'lucide-react'
+import { ChevronDown, LogOut, Menu, Monitor, Moon, Sun, X } from 'lucide-react'
 import { Button } from '@/components/ui'
+import { Logo } from '@/components/Logo'
 import { useAuth } from '@/hooks/use-auth'
 import { Theme, useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/cn'
@@ -229,9 +230,7 @@ export function AppShellLayout() {
             <div className="grid min-h-screen lg:grid-cols-[260px_1fr]">
                 <aside className="hidden border-b border-border bg-surface px-4 py-4 lg:block lg:border-b-0 lg:border-r lg:px-5 lg:py-6">
                     <div className="mb-5 flex items-center gap-3">
-                        <span className="inline-flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                            <Boxes className="size-5" />
-                        </span>
+                        <Logo />
                         <div>
                             <p className="text-sm font-semibold">KIP Inventory</p>
                             <p className="text-xs text-muted-foreground">Operations Workspace</p>
@@ -284,9 +283,7 @@ export function AppShellLayout() {
                     <aside className="relative z-10 h-full w-72 max-w-[85vw] border-r border-border bg-surface px-4 py-4">
                         <div className="mb-5 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <span className="inline-flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                                    <Boxes className="size-5" />
-                                </span>
+                                <Logo />
                                 <div>
                                     <p className="text-sm font-semibold">KIP Inventory</p>
                                     <p className="text-xs text-muted-foreground">Operations Workspace</p>
