@@ -226,9 +226,9 @@ export function AppShellLayout() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
+        <div className="min-h-screen bg-background bg-linear-to-b from-transparent via-transparent to-primary/5 text-foreground">
             <div className="grid min-h-screen lg:grid-cols-[260px_1fr]">
-                <aside className="hidden border-b border-border bg-surface px-4 py-4 lg:block lg:border-b-0 lg:border-r lg:px-5 lg:py-6">
+                <aside className="hidden border-b border-border bg-surface bg-linear-to-b from-transparent to-primary/5 px-4 py-4 lg:block lg:border-b-0 lg:border-r lg:px-5 lg:py-6">
                     <div className="mb-5 flex items-center gap-3">
                         <Logo />
                         <div>
@@ -280,7 +280,7 @@ export function AppShellLayout() {
                         onClick={closeMobileNav}
                     />
 
-                    <aside className="relative z-10 h-full w-72 max-w-[85vw] border-r border-border bg-surface px-4 py-4">
+                    <aside className="relative z-10 h-full w-72 max-w-[85vw] border-r border-border bg-surface bg-linear-to-b from-transparent to-primary/5 px-4 py-4">
                         <div className="mb-5 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <Logo />

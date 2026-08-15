@@ -4,7 +4,9 @@ function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
     return (
         <div
             className={cn(
-                'rounded-lg border border-border bg-surface text-surface-foreground shadow-sm',
+                // The gradient layers over the surface color, giving every card
+                // the same subtle primary tint as the dashboard hero section.
+                'rounded-lg border border-border bg-surface bg-linear-to-br from-transparent to-primary/5 text-surface-foreground shadow-sm',
                 className,
             )}
             {...props}
