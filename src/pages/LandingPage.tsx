@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Boxes, ChartNoAxesColumn, Monitor, Moon, ShieldCheck, Sun } from 'lucide-react'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { Logo } from '@/components/Logo'
 import { cn } from '@/lib/cn'
 import { Theme, useTheme } from '@/hooks/use-theme'
 
@@ -81,9 +82,7 @@ export function LandingPage() {
             <div id="landing-header" className="fixed inset-x-0 top-3 z-50 px-4 sm:px-6 lg:px-8">
                 <header className="mx-auto flex w-full max-w-6xl items-center justify-between rounded-xl border border-border bg-surface/80 px-4 py-3 backdrop-blur sm:px-5">
                     <div className="flex items-center gap-3">
-                        <span className="inline-flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                            <Boxes className="size-5" />
-                        </span>
+                        <Logo />
                         <div>
                             <p className="text-sm font-semibold">KIP Inventory</p>
                             <p className="text-xs text-muted-foreground hidden md:block">Inventory operations with control</p>

@@ -4,6 +4,7 @@ import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { getApiErrorMessage } from '@/api/types'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, toast } from '@/components/ui'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
 import { APPROVAL_DECISION_STATUS, APPROVAL_DOCUMENT_TYPE, fetchApprovalHistory } from '@/services/approvals.service'
@@ -19,6 +20,7 @@ import {
 import { fetchWarehouses } from '@/services/warehouses.service'
 
 export function StockAdjustmentDetailPage() {
+    const { canWrite } = useBillingAccess()
     const { stockAdjustmentId } = useParams({ strict: false }) as { stockAdjustmentId: string }
     const navigate = useNavigate()
     const queryClient = useQueryClient()
@@ -111,10 +113,10 @@ export function StockAdjustmentDetailPage() {
     })
 
     const adjustmentStatus = adjustment?.status
-    const canSubmitDraft = adjustmentStatus === STOCK_ADJUSTMENT_STATUS.DRAFT || adjustmentStatus === STOCK_ADJUSTMENT_STATUS.CHANGES_REQUESTED
+    const canSubmitDraft = canWrite && (adjustmentStatus === STOCK_ADJUSTMENT_STATUS.DRAFT || adjustmentStatus === STOCK_ADJUSTMENT_STATUS.CHANGES_REQUESTED)
     const canDeleteDraft = canSubmitDraft
-    const canCancel = adjustmentStatus === STOCK_ADJUSTMENT_STATUS.PENDING_APPROVAL || adjustmentStatus === STOCK_ADJUSTMENT_STATUS.APPROVED
-    const canApply = adjustmentStatus === STOCK_ADJUSTMENT_STATUS.APPROVED
+    const canCancel = canWrite && (adjustmentStatus === STOCK_ADJUSTMENT_STATUS.PENDING_APPROVAL || adjustmentStatus === STOCK_ADJUSTMENT_STATUS.APPROVED)
+    const canApply = canWrite && adjustmentStatus === STOCK_ADJUSTMENT_STATUS.APPROVED
 
     const latestChangeRequestComment = useMemo(() => {
         const history = approvalHistoryQuery.data?.data ?? []

@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { Badge, Button, Dialog, ImageUpload, Input, Label, toast } from '@/components/ui'
 import { CrudResourcePage, type CrudColumn, type CrudField } from '@/components/app/CrudResourcePage'
 import { getStatusBadgeClassName } from '@/lib/status-badge'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import {
     PRODUCT_CATEGORY_OPTIONS,
     PRODUCT_SIZE_OPTIONS,
@@ -59,6 +60,7 @@ function useAttributeOptions(type: ProductAttributeType) {
 }
 
 export function ProductsPage() {
+    const { canWrite } = useBillingAccess()
     const queryClient = useQueryClient()
     const [editProductId] = useState<string | undefined>(() => {
         const id = sessionStorage.getItem('edit-products')
@@ -117,7 +119,7 @@ export function ProductsPage() {
             required: true,
             placeholder: 'Search brand...',
             options: attributeOptionQueries.Brand?.data ?? [],
-            onAddNew: () => openAddNew('Brand'),
+            onAddNew: canWrite ? () => openAddNew('Brand') : undefined,
             addNewLabel: 'Add New Brand',
         },
         { name: 'name', label: 'Name', required: true, placeholder: 'iPhone 15 128GB Black' },
@@ -149,7 +151,7 @@ export function ProductsPage() {
                 type: isSearchable ? 'searchableSelect' : 'text',
                 placeholder: `Search ${variant.label.toLowerCase()}...`,
                 options: isSearchable ? getAttributeOptions(attrType) : undefined,
-                onAddNew: isSearchable ? () => openAddNew(attrType) : undefined,
+                onAddNew: isSearchable && canWrite ? () => openAddNew(attrType) : undefined,
                 addNewLabel: isSearchable ? `Add New ${variant.label}` : undefined,
             }
         }),
@@ -190,13 +192,14 @@ export function ProductsPage() {
                 </Badge>
             ),
         },
-    ], [])
+    ], [canWrite])
 
     const extraFormContent = (item: ProductItem | null) => (
         <div className="space-y-2">
             <ImageUpload
                 value={item?.imageUrl ?? null}
-                onChange={() => {}}
+                disabled={!canWrite}
+                onChange={() => { }}
                 maxSizeMB={3}
                 uploadFn={uploadProductImage}
                 onUploaded={(url) => {
@@ -285,7 +288,7 @@ export function ProductsPage() {
                         />
                     </div>
                     <div className="flex gap-3">
-                        <Button onClick={handleAddNew} loading={addNewSaving}>
+                        <Button disabled={!canWrite} onClick={handleAddNew} loading={addNewSaving}>
                             Add {addNewType}
                         </Button>
                         <Button variant="outline" onClick={() => setAddNewDialogOpen(false)}>

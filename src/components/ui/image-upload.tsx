@@ -7,6 +7,7 @@ export type ImageUploadProps = {
     onChange: (file: File | null) => void
     maxSizeMB?: number
     className?: string
+    disabled?: boolean
     /** Callback after successful upload — receives the image URL from the server. */
     onUploaded?: (url: string) => void
     /** Function that uploads a file and returns the URL. */
@@ -15,7 +16,7 @@ export type ImageUploadProps = {
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-export function ImageUpload({ value, onChange, maxSizeMB = 3, className, onUploaded, uploadFn }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, maxSizeMB = 3, className, disabled = false, onUploaded, uploadFn }: ImageUploadProps) {
     const [preview, setPreview] = useState<string | null>(value ?? null)
     const [error, setError] = useState<string | null>(null)
     const [isDragOver, setIsDragOver] = useState(false)
@@ -91,6 +92,7 @@ export function ImageUpload({ value, onChange, maxSizeMB = 3, className, onUploa
                         />
                         <button
                             type="button"
+                            disabled={disabled}
                             onClick={handleRemove}
                             className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md bg-destructive text-destructive-foreground shadow-sm transition-colors hover:bg-destructive/90"
                             aria-label="Remove image"
@@ -101,7 +103,7 @@ export function ImageUpload({ value, onChange, maxSizeMB = 3, className, onUploa
                     {uploadFn && onUploaded && (
                         <button
                             type="button"
-                            disabled={isUploading}
+                            disabled={disabled || isUploading}
                             onClick={async () => {
                                 const file = inputRef.current?.files?.[0]
                                 if (!file) return
@@ -126,6 +128,7 @@ export function ImageUpload({ value, onChange, maxSizeMB = 3, className, onUploa
             ) : (
                 <button
                     type="button"
+                    disabled={disabled}
                     onClick={() => inputRef.current?.click()}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
@@ -152,6 +155,7 @@ export function ImageUpload({ value, onChange, maxSizeMB = 3, className, onUploa
             <input
                 ref={inputRef}
                 type="file"
+                disabled={disabled}
                 accept="image/jpeg,image/png,image/webp"
                 onChange={(e) => validateAndSet(e.target.files?.[0] ?? null)}
                 className="hidden"

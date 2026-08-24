@@ -27,6 +27,7 @@ import { StockAdjustmentsPage } from "@/pages/app/StockAdjustmentsPage";
 import { StockIssuesPage } from "@/pages/app/StockIssuesPage";
 import { TransferRequestDetailPage } from "@/pages/app/TransferRequestDetailPage";
 import { UsersPage } from "@/pages/app/UsersPage";
+import { BillingPage } from "@/pages/app/BillingPage";
 import { SupplierDetailPage } from "@/pages/app/SupplierDetailPage";
 import { SuppliersPage } from "@/pages/app/SuppliersPage";
 import { WarehouseDetailPage } from "@/pages/app/WarehouseDetailPage";
@@ -317,6 +318,12 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+const billingRoute = createRoute({
+  getParentRoute: () => appShellRoute,
+  path: "/billing",
+  component: BillingPage,
+});
+
 
 const routeTree = rootRoute.addChildren([
   landingRoute,
@@ -356,6 +363,7 @@ const routeTree = rootRoute.addChildren([
     approvalsRoute,
     approvalDetailRoute,
     usersRoute,
+    billingRoute,
     settingsRoute,
 
   ]),

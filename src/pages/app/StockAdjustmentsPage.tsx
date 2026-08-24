@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { getApiErrorMessage } from '@/api/types'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Popover, Textarea, toast } from '@/components/ui'
 import { EllipsisVertical } from 'lucide-react'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
@@ -71,6 +72,7 @@ function createEditForm(item: StockAdjustmentItem): AdjustmentFormState {
 }
 
 export function StockAdjustmentsPage() {
+    const { canWrite } = useBillingAccess()
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const [pageNumber, setPageNumber] = useState(1)
@@ -274,7 +276,7 @@ export function StockAdjustmentsPage() {
                     <h1 className="text-2xl font-semibold tracking-tight">Stock Adjustments</h1>
                     <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Correct warehouse balances through draft creation, submission, and apply workflow.</p>
                 </div>
-                <Button onClick={openCreate}>Create Stock Adjustment</Button>
+                <Button disabled={!canWrite} onClick={openCreate}>Create Stock Adjustment</Button>
             </section>
 
             {isComposerOpen && (
@@ -292,113 +294,115 @@ export function StockAdjustmentsPage() {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSaveDraft} className="space-y-4">
-                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                <div className="space-y-2">
-                                    <Label htmlFor="adjustmentWarehouse" required>Warehouse</Label>
-                                    <select
-                                        id="adjustmentWarehouse"
-                                        value={formState.warehouseId}
-                                        onChange={(event) => updateForm('warehouseId', event.target.value)}
-                                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                    >
-                                        <option value="">Select warehouse</option>
-                                        {(warehousesQuery.data?.data ?? []).map((warehouse) => (
-                                            <option key={warehouse.warehouseId} value={warehouse.warehouseId}>{warehouse.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="adjustmentReason" required>Reason</Label>
-                                    <select
-                                        id="adjustmentReason"
-                                        value={formState.reason}
-                                        onChange={(event) => updateForm('reason', event.target.value as AdjustmentReason)}
-                                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                    >
-                                        {adjustmentReasonOptions.map((reason) => (
-                                            <option key={reason} value={reason}>{reason}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="adjustmentNotes">Notes</Label>
-                                    <Textarea
-                                        id="adjustmentNotes"
-                                        value={formState.notes}
-                                        onChange={(event) => updateForm('notes', event.target.value)}
-                                        placeholder="Optional note"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-3 rounded-2xl border border-border/60 p-4">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <div>
-                                        <h2 className="text-sm font-medium">Adjustment lines</h2>
-                                        <p className="text-xs text-muted-foreground">Quantity after can be zero or higher. Unit cost is optional.</p>
+                            <fieldset disabled={!canWrite}>
+                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="adjustmentWarehouse" required>Warehouse</Label>
+                                        <select
+                                            id="adjustmentWarehouse"
+                                            value={formState.warehouseId}
+                                            onChange={(event) => updateForm('warehouseId', event.target.value)}
+                                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                                        >
+                                            <option value="">Select warehouse</option>
+                                            {(warehousesQuery.data?.data ?? []).map((warehouse) => (
+                                                <option key={warehouse.warehouseId} value={warehouse.warehouseId}>{warehouse.name}</option>
+                                            ))}
+                                        </select>
                                     </div>
-                                    <Button type="button" variant="outline" onClick={addLine} className="w-full sm:w-auto">Add line</Button>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="adjustmentReason" required>Reason</Label>
+                                        <select
+                                            id="adjustmentReason"
+                                            value={formState.reason}
+                                            onChange={(event) => updateForm('reason', event.target.value as AdjustmentReason)}
+                                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                                        >
+                                            {adjustmentReasonOptions.map((reason) => (
+                                                <option key={reason} value={reason}>{reason}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="adjustmentNotes">Notes</Label>
+                                        <Textarea
+                                            id="adjustmentNotes"
+                                            value={formState.notes}
+                                            onChange={(event) => updateForm('notes', event.target.value)}
+                                            placeholder="Optional note"
+                                        />
+                                    </div>
                                 </div>
 
-                                <div className="space-y-3">
-                                    {formState.lines.map((line, index) => (
-                                        <div key={line.id} className="grid gap-3 rounded-2xl border border-border/60 p-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_auto]">
-                                            <div className="space-y-2">
-                                                <Label htmlFor={`adjustment-product-${line.id}`} required>Product {index + 1}</Label>
-                                                <select
-                                                    id={`adjustment-product-${line.id}`}
-                                                    value={line.productId}
-                                                    onChange={(event) => updateLine(line.id, 'productId', event.target.value)}
-                                                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                                >
-                                                    <option value="">Select product</option>
-                                                    {(productsQuery.data?.data ?? []).map((product) => (
-                                                        <option key={product.productId} value={product.productId}>{product.name} ({product.sku})</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor={`adjustment-quantity-${line.id}`} required>Quantity after</Label>
-                                                <Input
-                                                    id={`adjustment-quantity-${line.id}`}
-                                                    type="number"
-                                                    min="0"
-                                                    value={line.quantityAfter}
-                                                    onChange={(event) => updateLine(line.id, 'quantityAfter', event.target.value)}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor={`adjustment-cost-${line.id}`}>Unit cost</Label>
-                                                <Input
-                                                    id={`adjustment-cost-${line.id}`}
-                                                    type="number"
-                                                    min="0.01"
-                                                    step="0.01"
-                                                    value={line.unitCost}
-                                                    onChange={(event) => updateLine(line.id, 'unitCost', event.target.value)}
-                                                />
-                                            </div>
-                                            <div className="flex items-end">
-                                                <Button type="button" variant="outline" onClick={() => removeLine(line.id)} disabled={formState.lines.length === 1}>
-                                                    Remove
-                                                </Button>
-                                            </div>
+                                <div className="space-y-3 rounded-2xl border border-border/60 p-4">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <h2 className="text-sm font-medium">Adjustment lines</h2>
+                                            <p className="text-xs text-muted-foreground">Quantity after can be zero or higher. Unit cost is optional.</p>
                                         </div>
-                                    ))}
+                                        <Button type="button" variant="outline" onClick={addLine} className="w-full sm:w-auto">Add line</Button>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        {formState.lines.map((line, index) => (
+                                            <div key={line.id} className="grid gap-3 rounded-2xl border border-border/60 p-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_auto]">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor={`adjustment-product-${line.id}`} required>Product {index + 1}</Label>
+                                                    <select
+                                                        id={`adjustment-product-${line.id}`}
+                                                        value={line.productId}
+                                                        onChange={(event) => updateLine(line.id, 'productId', event.target.value)}
+                                                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                                                    >
+                                                        <option value="">Select product</option>
+                                                        {(productsQuery.data?.data ?? []).map((product) => (
+                                                            <option key={product.productId} value={product.productId}>{product.name} ({product.sku})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor={`adjustment-quantity-${line.id}`} required>Quantity after</Label>
+                                                    <Input
+                                                        id={`adjustment-quantity-${line.id}`}
+                                                        type="number"
+                                                        min="0"
+                                                        value={line.quantityAfter}
+                                                        onChange={(event) => updateLine(line.id, 'quantityAfter', event.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor={`adjustment-cost-${line.id}`}>Unit cost</Label>
+                                                    <Input
+                                                        id={`adjustment-cost-${line.id}`}
+                                                        type="number"
+                                                        min="0.01"
+                                                        step="0.01"
+                                                        value={line.unitCost}
+                                                        onChange={(event) => updateLine(line.id, 'unitCost', event.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="flex items-end">
+                                                    <Button type="button" variant="outline" onClick={() => removeLine(line.id)} disabled={formState.lines.length === 1}>
+                                                        Remove
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {formError && <p className="text-sm text-destructive">{formError}</p>}
+                                {formError && <p className="text-sm text-destructive">{formError}</p>}
 
-                            <div className="flex flex-wrap gap-3">
-                                <Button type="submit" loading={saveDraftMutation.isPending}>{editingAdjustment ? 'Save Draft Changes' : 'Create Draft'}</Button>
-                                <Button type="button" variant="outline" onClick={() => {
-                                    resetForm()
-                                    setFormError(null)
-                                }}>{editingAdjustment ? 'Reset Changes' : 'Reset Form'}</Button>
-                            </div>
+                                <div className="flex flex-wrap gap-3">
+                                    <Button type="submit" loading={saveDraftMutation.isPending}>{editingAdjustment ? 'Save Draft Changes' : 'Create Draft'}</Button>
+                                    <Button type="button" variant="outline" onClick={() => {
+                                        resetForm()
+                                        setFormError(null)
+                                    }}>{editingAdjustment ? 'Reset Changes' : 'Reset Form'}</Button>
+                                </div>
+                            </fieldset>
                         </form>
                     </CardContent>
                 </Card>
@@ -481,7 +485,7 @@ export function StockAdjustmentsPage() {
                                                     className="w-16 min-w-16 px-4 py-3 align-top whitespace-nowrap"
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
-                                                    <Popover
+                                                    {canWrite ? <Popover
                                                         trigger={
                                                             <span className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted">
                                                                 <EllipsisVertical className="size-4" />
@@ -513,7 +517,7 @@ export function StockAdjustmentsPage() {
                                                                 </button>
                                                             )}
                                                         </div>
-                                                    </Popover>
+                                                    </Popover> : <span className="text-xs text-muted-foreground">View only</span>}
                                                 </td>
                                             </tr>
                                         )

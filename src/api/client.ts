@@ -7,9 +7,23 @@ import {
   setAccessToken,
   setAuthSession,
 } from "@/auth/session";
+import { getBillingAccessState, isBillingMutationBlocked } from "@/lib/billing-access";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 let refreshPromise: Promise<boolean> | null = null;
+
+function assertBillingWriteAllowed(path: string, method: string) {
+  if (method === "GET" || path.startsWith("/Auth") || path.startsWith("/Billing")) return;
+
+  const state = getBillingAccessState();
+  if (isBillingMutationBlocked(state)) {
+    throw {
+      success: false,
+      statusCode: 403,
+      message: "Your trial has ended. Subscribe to continue using KIP Inventory.",
+    } satisfies ApiError;
+  }
+}
 
 function normalizePaginatedResponse<T>(
   response: PaginatedApiResponse<T>,
@@ -110,6 +124,7 @@ async function requestWithRetry<T>(
   init: RequestInit,
   retryOn401 = true,
 ): Promise<T> {
+  assertBillingWriteAllowed(path, init.method ?? "GET");
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: "include",

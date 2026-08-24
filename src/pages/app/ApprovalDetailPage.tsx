@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { getApiErrorMessage } from '@/api/types'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Textarea, toast } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
@@ -248,6 +249,7 @@ function renderLineDetails(detail: ApprovalDocumentDetail, documentType: Approva
 }
 
 export function ApprovalDetailPage() {
+    const { canWrite } = useBillingAccess()
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const params = useParams({ strict: false }) as { documentType?: string; documentId?: string }
@@ -491,11 +493,12 @@ export function ApprovalDetailPage() {
                                     />
                                 </div>
                                 <div className="flex flex-wrap gap-3">
-                                    <Button onClick={() => approveMutation.mutate(selectedDocument)} loading={approveMutation.isPending}>
+                                    <Button disabled={!canWrite} onClick={() => approveMutation.mutate(selectedDocument)} loading={approveMutation.isPending}>
                                         Approve
                                     </Button>
                                     <Button
                                         variant="outline"
+                                        disabled={!canWrite}
                                         onClick={() => {
                                             if (!decisionComment.trim()) {
                                                 toast.error('Add a comment before requesting changes.')
@@ -510,6 +513,7 @@ export function ApprovalDetailPage() {
                                     </Button>
                                     <Button
                                         variant="destructive"
+                                        disabled={!canWrite}
                                         onClick={() => {
                                             if (!window.confirm('Cancel this document?')) {
                                                 return

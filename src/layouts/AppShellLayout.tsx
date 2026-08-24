@@ -7,6 +7,12 @@ import { useAuth } from '@/hooks/use-auth'
 import { Theme, useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/cn'
 import { navGroups, type NavGroup } from '@/lib/nav-groups'
+import { BillingAccessProvider, useBillingAccess } from '@/hooks/use-billing-access'
+
+function formatDate(value?: string | null) {
+    if (!value) return 'soon'
+    return new Date(value).toLocaleDateString()
+}
 
 const themeOptions: { label: string; value: Theme; icon: React.ComponentType<{ className?: string }> }[] = [
     { label: 'Light', value: 'light', icon: Sun },
@@ -14,7 +20,7 @@ const themeOptions: { label: string; value: Theme; icon: React.ComponentType<{ c
     { label: 'System', value: 'system', icon: Monitor },
 ]
 
-export function AppShellLayout() {
+function AppShellContent() {
     const navigate = useNavigate()
     const { user, logout } = useAuth()
     const { theme, setTheme } = useTheme()
@@ -22,6 +28,9 @@ export function AppShellLayout() {
     const pathname = useRouterState({
         select: (state) => state.location.pathname,
     })
+
+    const { current, isLocked } = useBillingAccess()
+    const billingState = current?.state
 
     function isActive(to?: string) {
         if (!to) return false
@@ -265,8 +274,38 @@ export function AppShellLayout() {
                         </div>
                     </header>
 
+                    {billingState === 'ReadOnly' && (
+                        <div className="border-b border-amber-600/20 bg-amber-500/10 px-4 py-2.5 text-center text-sm text-amber-700 dark:text-amber-300">
+                            Your trial has ended — you're in view-only mode until {formatDate(current?.readOnlyUntil)}.{' '}
+                            <Link to="/app/billing" className="font-medium underline">
+                                Subscribe to keep working
+                            </Link>
+                        </div>
+                    )}
+
+                    {billingState === 'Locked' && (
+                        <div className="border-b border-destructive/20 bg-destructive/10 px-4 py-2.5 text-center text-sm text-destructive">
+                            Your workspace is locked.{' '}
+                            <Link to="/app/billing" className="font-medium underline">
+                                Subscribe to regain access
+                            </Link>
+                        </div>
+                    )}
+
                     <div className="min-w-0 flex-1 px-4 py-6 md:p-14 lg:p-16">
-                        <Outlet />
+                        {isLocked && pathname !== '/app/billing' ? (
+                            <main className="mx-auto flex min-h-[50vh] max-w-xl items-center justify-center">
+                                <section className="w-full rounded-xl border border-destructive/30 bg-surface/95 p-8 text-center shadow-sm">
+                                    <h1 className="text-2xl font-semibold">Workspace locked</h1>
+                                    <p className="mt-3 text-sm text-muted-foreground">
+                                        Your workspace is locked until an administrator subscribes to a plan.
+                                    </p>
+                                    <Button className="mt-6" onClick={() => navigate({ to: '/app/billing' })}>
+                                        Open Billing
+                                    </Button>
+                                </section>
+                            </main>
+                        ) : <Outlet />}
                     </div>
                 </div>
             </div>
@@ -306,5 +345,13 @@ export function AppShellLayout() {
                 </div>
             )}
         </div>
+    )
+}
+
+export function AppShellLayout() {
+    return (
+        <BillingAccessProvider>
+            <AppShellContent />
+        </BillingAccessProvider>
     )
 }

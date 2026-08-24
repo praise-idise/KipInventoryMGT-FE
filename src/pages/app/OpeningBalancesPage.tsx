@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { getApiErrorMessage } from '@/api/types'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, toast } from '@/components/ui'
 import { getGroupLabel } from '@/lib/nav-groups'
 import { OPENING_BALANCE_STATUS } from '@/lib/domain-values'
@@ -43,6 +44,7 @@ function createEmptyForm(): OpeningBalanceFormState {
 }
 
 export function OpeningBalancesPage() {
+    const { canWrite } = useBillingAccess()
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const [pageNumber, setPageNumber] = useState(1)
@@ -193,13 +195,13 @@ export function OpeningBalancesPage() {
                         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Set and review opening stock positions for warehouse inventory.</p>
                     </div>
 
-                <Button onClick={() => {
-                    setIsComposerOpen(true)
-                    setFormError(null)
-                }}>
-                    Create Opening Balance
-                </Button>
-            </div>
+                    <Button disabled={!canWrite} onClick={() => {
+                        setIsComposerOpen(true)
+                        setFormError(null)
+                    }}>
+                        Create Opening Balance
+                    </Button>
+                </div>
             </section>
 
             {isComposerOpen && (
@@ -225,105 +227,107 @@ export function OpeningBalancesPage() {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleCreate} className="space-y-4">
-                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                <div className="space-y-2">
-                                    <Label htmlFor="openingBalanceWarehouse" required>Warehouse</Label>
-                                    <select
-                                        id="openingBalanceWarehouse"
-                                        value={formState.warehouseId}
-                                        onChange={(event) => updateForm('warehouseId', event.target.value)}
-                                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                    >
-                                        <option value="">Select warehouse</option>
-                                        {(warehousesQuery.data?.data ?? []).map((warehouse) => (
-                                            <option key={warehouse.warehouseId} value={warehouse.warehouseId}>{warehouse.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="space-y-2 xl:col-span-2">
-                                    <Label htmlFor="openingBalanceNotes">Notes</Label>
-                                    <Textarea
-                                        id="openingBalanceNotes"
-                                        value={formState.notes}
-                                        onChange={(event) => updateForm('notes', event.target.value)}
-                                        placeholder="Optional note"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-3 rounded-2xl border border-border/60 p-4">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <div>
-                                        <h2 className="text-sm font-medium">Opening balance lines</h2>
-                                        <p className="text-xs text-muted-foreground">Each line defines the opening quantity and unit cost for one product.</p>
+                            <fieldset disabled={!canWrite}>
+                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="openingBalanceWarehouse" required>Warehouse</Label>
+                                        <select
+                                            id="openingBalanceWarehouse"
+                                            value={formState.warehouseId}
+                                            onChange={(event) => updateForm('warehouseId', event.target.value)}
+                                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                                        >
+                                            <option value="">Select warehouse</option>
+                                            {(warehousesQuery.data?.data ?? []).map((warehouse) => (
+                                                <option key={warehouse.warehouseId} value={warehouse.warehouseId}>{warehouse.name}</option>
+                                            ))}
+                                        </select>
                                     </div>
-                                    <Button type="button" variant="outline" onClick={addLine} className="w-full sm:w-auto">Add line</Button>
+
+                                    <div className="space-y-2 xl:col-span-2">
+                                        <Label htmlFor="openingBalanceNotes">Notes</Label>
+                                        <Textarea
+                                            id="openingBalanceNotes"
+                                            value={formState.notes}
+                                            onChange={(event) => updateForm('notes', event.target.value)}
+                                            placeholder="Optional note"
+                                        />
+                                    </div>
                                 </div>
 
-                                <div className="space-y-3">
-                                    {formState.lines.map((line, index) => (
-                                        <div key={line.id} className="grid gap-3 rounded-2xl border border-border/60 p-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_auto]">
-                                            <div className="space-y-2">
-                                                <Label htmlFor={`opening-product-${line.id}`} required>Product {index + 1}</Label>
-                                                <select
-                                                    id={`opening-product-${line.id}`}
-                                                    value={line.productId}
-                                                    onChange={(event) => updateLine(line.id, 'productId', event.target.value)}
-                                                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                                >
-                                                    <option value="">Select product</option>
-                                                    {(productsQuery.data?.data ?? []).map((product) => (
-                                                        <option key={product.productId} value={product.productId}>{product.name} ({product.sku})</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor={`opening-quantity-${line.id}`} required>Quantity</Label>
-                                                <Input
-                                                    id={`opening-quantity-${line.id}`}
-                                                    type="number"
-                                                    min="1"
-                                                    value={line.quantity}
-                                                    onChange={(event) => updateLine(line.id, 'quantity', event.target.value)}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor={`opening-cost-${line.id}`} required>Unit cost</Label>
-                                                <Input
-                                                    id={`opening-cost-${line.id}`}
-                                                    type="number"
-                                                    min="0.01"
-                                                    step="0.01"
-                                                    value={line.unitCost}
-                                                    onChange={(event) => updateLine(line.id, 'unitCost', event.target.value)}
-                                                />
-                                            </div>
-                                            <div className="flex items-end">
-                                                <Button type="button" variant="outline" onClick={() => removeLine(line.id)} disabled={formState.lines.length === 1}>
-                                                    Remove
-                                                </Button>
-                                            </div>
+                                <div className="space-y-3 rounded-2xl border border-border/60 p-4">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <h2 className="text-sm font-medium">Opening balance lines</h2>
+                                            <p className="text-xs text-muted-foreground">Each line defines the opening quantity and unit cost for one product.</p>
                                         </div>
-                                    ))}
+                                        <Button type="button" variant="outline" onClick={addLine} className="w-full sm:w-auto">Add line</Button>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        {formState.lines.map((line, index) => (
+                                            <div key={line.id} className="grid gap-3 rounded-2xl border border-border/60 p-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_auto]">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor={`opening-product-${line.id}`} required>Product {index + 1}</Label>
+                                                    <select
+                                                        id={`opening-product-${line.id}`}
+                                                        value={line.productId}
+                                                        onChange={(event) => updateLine(line.id, 'productId', event.target.value)}
+                                                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                                                    >
+                                                        <option value="">Select product</option>
+                                                        {(productsQuery.data?.data ?? []).map((product) => (
+                                                            <option key={product.productId} value={product.productId}>{product.name} ({product.sku})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor={`opening-quantity-${line.id}`} required>Quantity</Label>
+                                                    <Input
+                                                        id={`opening-quantity-${line.id}`}
+                                                        type="number"
+                                                        min="1"
+                                                        value={line.quantity}
+                                                        onChange={(event) => updateLine(line.id, 'quantity', event.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor={`opening-cost-${line.id}`} required>Unit cost</Label>
+                                                    <Input
+                                                        id={`opening-cost-${line.id}`}
+                                                        type="number"
+                                                        min="0.01"
+                                                        step="0.01"
+                                                        value={line.unitCost}
+                                                        onChange={(event) => updateLine(line.id, 'unitCost', event.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="flex items-end">
+                                                    <Button type="button" variant="outline" onClick={() => removeLine(line.id)} disabled={formState.lines.length === 1}>
+                                                        Remove
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {formError && <p className="text-sm text-destructive">{formError}</p>}
+                                {formError && <p className="text-sm text-destructive">{formError}</p>}
 
-                            <div className="flex flex-wrap gap-3">
-                                <Button type="submit" loading={createMutation.isPending}>Create Opening Balance</Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => {
-                                        setFormState(createEmptyForm())
-                                        setFormError(null)
-                                    }}
-                                >
-                                    Reset Form
-                                </Button>
-                            </div>
+                                <div className="flex flex-wrap gap-3">
+                                    <Button type="submit" loading={createMutation.isPending}>Create Opening Balance</Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                            setFormState(createEmptyForm())
+                                            setFormError(null)
+                                        }}
+                                    >
+                                        Reset Form
+                                    </Button>
+                                </div>
+                            </fieldset>
                         </form>
                     </CardContent>
                 </Card>

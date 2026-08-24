@@ -9,6 +9,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, 
 import { APP_ROLES } from '@/auth/roles'
 import { clearAuthSession } from '@/auth/session'
 import { useAuth } from '@/hooks/use-auth'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import { changePassword } from '@/services/auth.service'
 import { fetchCurrentOrganization, updateOrganization } from '@/services/organizations.service'
 
@@ -34,6 +35,7 @@ type ChangePasswordValues = z.infer<typeof changePasswordSchema>
 
 export function SettingsPage() {
     const { user } = useAuth()
+    const { canWrite } = useBillingAccess()
     const queryClient = useQueryClient()
     const navigate = useNavigate()
     const isAdmin = user?.roles?.includes(APP_ROLES.ADMIN) ?? false
@@ -118,25 +120,27 @@ export function SettingsPage() {
                         <p className="text-sm">{organizationQuery.data.name}</p>
                     ) : (
                         <form onSubmit={organizationForm.handleSubmit(onUpdateOrganization)} className="flex flex-wrap items-end gap-3">
-                            <div className="space-y-2">
-                                <Label htmlFor="organizationName" required>Name</Label>
-                                <Input
-                                    id="organizationName"
-                                    className="md:min-w-72"
-                                    error={Boolean(organizationForm.formState.errors.name)}
-                                    {...organizationForm.register('name')}
-                                />
-                                {organizationForm.formState.errors.name && (
-                                    <p className="text-xs text-destructive">{organizationForm.formState.errors.name.message}</p>
-                                )}
-                            </div>
-                            <Button
-                                type="submit"
-                                loading={updateOrganizationMutation.isPending}
-                                disabled={organizationNameValue.trim() === (organizationQuery.data.name ?? '').trim()}
-                            >
-                                Save
-                            </Button>
+                            <fieldset disabled={!canWrite} className="flex flex-wrap items-end gap-3">
+                                <div className="space-y-2">
+                                    <Label htmlFor="organizationName" required>Name</Label>
+                                    <Input
+                                        id="organizationName"
+                                        className="md:min-w-72"
+                                        error={Boolean(organizationForm.formState.errors.name)}
+                                        {...organizationForm.register('name')}
+                                    />
+                                    {organizationForm.formState.errors.name && (
+                                        <p className="text-xs text-destructive">{organizationForm.formState.errors.name.message}</p>
+                                    )}
+                                </div>
+                                <Button
+                                    type="submit"
+                                    loading={updateOrganizationMutation.isPending}
+                                    disabled={organizationNameValue.trim() === (organizationQuery.data.name ?? '').trim()}
+                                >
+                                    Save
+                                </Button>
+                            </fieldset>
                         </form>
                     )}
                 </CardContent>

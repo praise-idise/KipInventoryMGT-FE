@@ -6,6 +6,7 @@ import { getApiErrorMessage } from '@/api/types'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Dialog, Input, Label, Popover, toast, useConfirm } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/hooks/use-auth'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import { getStatusBadgeClassName } from '@/lib/status-badge'
 import { activateUser, deactivateUser, fetchUsers, removeUserFromOrganization, revokeUserSessions, updateUserRoles } from '@/services/users.service'
 import { createRole, deleteRole, fetchRoles, updateRole, type RoleItem } from '@/services/roles.service'
@@ -29,6 +30,7 @@ const TABS: { id: TabId; label: string }[] = [
 
 export function UsersPage() {
     const { user } = useAuth()
+    const { canWrite } = useBillingAccess()
     const queryClient = useQueryClient()
     const { confirm, dialog: confirmDialog } = useConfirm()
     const [activeTab, setActiveTab] = useState<TabId>('users')
@@ -393,6 +395,7 @@ export function UsersPage() {
                                                             <div className="flex flex-col">
                                                                 <button
                                                                     type="button"
+                                                                    disabled={!canWrite}
                                                                     onClick={() => openRoleEditor(item.userId)}
                                                                     className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
                                                                 >
@@ -400,6 +403,7 @@ export function UsersPage() {
                                                                 </button>
                                                                 <button
                                                                     type="button"
+                                                                    disabled={!canWrite}
                                                                     onClick={() => handleToggleActive(item.userId, !item.isActive, userLabel)}
                                                                     className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
                                                                 >
@@ -407,6 +411,7 @@ export function UsersPage() {
                                                                 </button>
                                                                 <button
                                                                     type="button"
+                                                                    disabled={!canWrite}
                                                                     onClick={() => handleRevoke(item.userId, userLabel)}
                                                                     className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors"
                                                                 >
@@ -414,6 +419,7 @@ export function UsersPage() {
                                                                 </button>
                                                                 <button
                                                                     type="button"
+                                                                    disabled={!canWrite}
                                                                     onClick={() => handleRemoveUser(item.userId, userLabel)}
                                                                     className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors"
                                                                 >
@@ -457,7 +463,7 @@ export function UsersPage() {
                         <CardTitle>Invite Members</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="flex flex-wrap items-end gap-3">
+                        <fieldset disabled={!canWrite} className="flex flex-wrap items-end gap-3">
                             <div className="space-y-2">
                                 <Label htmlFor="inviteEmail" required>Email address</Label>
                                 <Input
@@ -486,7 +492,7 @@ export function UsersPage() {
                             <Button onClick={handleInvite} loading={inviteMutation.isPending}>
                                 Send Invitation
                             </Button>
-                        </div>
+                        </fieldset>
 
                         <div className="overflow-x-auto rounded-lg border border-border">
                             <table className="w-max min-w-full divide-y divide-border text-sm">
@@ -523,6 +529,7 @@ export function UsersPage() {
                                                     {invitation.status === 'Pending' && (
                                                         <button
                                                             type="button"
+                                                            disabled={!canWrite}
                                                             onClick={() => handleRevokeInvitation(invitation.organizationInvitationId, invitation.email)}
                                                             className="text-sm text-destructive hover:underline"
                                                         >
@@ -545,7 +552,7 @@ export function UsersPage() {
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <CardTitle>Roles</CardTitle>
-                            <Button size="sm" onClick={openCreateRoleDialog}>Add Role</Button>
+                            <Button size="sm" disabled={!canWrite} onClick={openCreateRoleDialog}>Add Role</Button>
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -574,8 +581,8 @@ export function UsersPage() {
                                                         align="end"
                                                     >
                                                         <div className="flex flex-col">
-                                                            <button type="button" onClick={() => openEditRoleDialog(role)} className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors">Edit</button>
-                                                            <button type="button" onClick={() => handleDeleteRole(role.id, role.name)} className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors">Delete</button>
+                                                            <button type="button" disabled={!canWrite} onClick={() => openEditRoleDialog(role)} className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors">Edit</button>
+                                                            <button type="button" disabled={!canWrite} onClick={() => handleDeleteRole(role.id, role.name)} className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors">Delete</button>
                                                         </div>
                                                     </Popover>
                                                 </td>
@@ -608,6 +615,7 @@ export function UsersPage() {
                                 {ROLE_OPTIONS.map((role) => (
                                     <label key={role} className="flex items-center gap-2 text-sm">
                                         <input
+                                            disabled={!canWrite}
                                             type="checkbox"
                                             className="size-4 rounded border-input"
                                             checked={draftRoles.includes(role)}
@@ -619,9 +627,9 @@ export function UsersPage() {
                             </div>
                             <div className="flex gap-3">
                                 <Button
+                                    disabled={!canWrite || !hasChanges || draftRoles.length === 0}
                                     onClick={() => handleSaveRoles(editingRolesFor, draftRoles)}
                                     loading={rolesMutation.isPending}
-                                    disabled={!hasChanges || draftRoles.length === 0}
                                 >
                                     Save Roles
                                 </Button>
@@ -636,7 +644,7 @@ export function UsersPage() {
             {confirmDialog}
 
             <Dialog open={roleDialogOpen} onClose={() => setRoleDialogOpen(false)} title={editingRole?.id ? 'Edit Role' : 'Create Role'}>
-                <div className="space-y-4">
+                <fieldset disabled={!canWrite} className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="role-name" required>Name</Label>
                         <Input id="role-name" value={editingRole?.name ?? ''} onChange={(e) => setEditingRole((prev) => prev ? { ...prev, name: e.target.value } : null)} placeholder="Administrator" />
@@ -646,10 +654,10 @@ export function UsersPage() {
                         <Input id="role-desc" value={editingRole?.description ?? ''} onChange={(e) => setEditingRole((prev) => prev ? { ...prev, description: e.target.value } : null)} placeholder="Full system access" maxLength={500} />
                     </div>
                     <div className="flex gap-3">
-                        <Button onClick={handleSaveRole} loading={roleDialogSaving}>Save</Button>
+                        <Button disabled={!canWrite} onClick={handleSaveRole} loading={roleDialogSaving}>Save</Button>
                         <Button variant="outline" onClick={() => setRoleDialogOpen(false)}>Cancel</Button>
                     </div>
-                </div>
+                </fieldset>
             </Dialog>
         </main>
     )

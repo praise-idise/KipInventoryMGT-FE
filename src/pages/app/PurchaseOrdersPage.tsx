@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { getApiErrorMessage } from '@/api/types'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import { PurchaseOrderDraftFormCard, buildPurchaseOrderDraftPatch, buildPurchaseOrderDraftValues, createEmptyPurchaseOrderForm, createPurchaseOrderEditForm, validatePurchaseOrderDraft, type PurchaseOrderFormState } from '@/components/app/PurchaseOrderDraftForm'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Popover, toast } from '@/components/ui'
 import { EllipsisVertical } from 'lucide-react'
@@ -24,6 +25,7 @@ const MIN_SEARCH_CHARACTERS = 3
 const SEARCH_DEBOUNCE_MS = 300
 
 export function PurchaseOrdersPage() {
+    const { canWrite } = useBillingAccess()
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const [pageNumber, setPageNumber] = useState(1)
@@ -222,8 +224,8 @@ export function PurchaseOrdersPage() {
                         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Create, search, review, submit, and manage purchase orders.</p>
                     </div>
 
-                <Button onClick={openCreate}>Add Purchase Order</Button>
-            </div>
+                    <Button disabled={!canWrite} onClick={openCreate}>Add Purchase Order</Button>
+                </div>
             </section>
 
             {(isCreateOpen || editingOrder) && (
@@ -233,6 +235,7 @@ export function PurchaseOrdersPage() {
                     submitLabel={editingOrder ? 'Save Changes' : 'Create Purchase Order'}
                     cancelLabel={editingOrder ? 'Close' : 'Cancel'}
                     submitLoading={editingOrder ? updateMutation.isPending : createMutation.isPending}
+                    canWrite={canWrite}
                     formState={formState}
                     setFormState={setFormState}
                     formError={formError}
@@ -334,7 +337,7 @@ export function PurchaseOrdersPage() {
                                                         align="end"
                                                     >
                                                         <div className="flex flex-col">
-                                                            {canEditOrder && (
+                                                            {canWrite && canEditOrder && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => openEdit(item.purchaseOrderId)}
@@ -344,7 +347,7 @@ export function PurchaseOrdersPage() {
                                                                     Edit
                                                                 </button>
                                                             )}
-                                                            {canDeleteOrder && (
+                                                            {canWrite && canDeleteOrder && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {

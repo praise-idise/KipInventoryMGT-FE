@@ -5,6 +5,7 @@ import { ArrowLeft, EllipsisVertical, Info, Pencil, Trash2 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, ImageSkeleton, Input, Label, Popover, useConfirm, toast } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { getApiErrorMessage } from '@/api/types'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import { PRODUCT_VARIANT_FIELDS } from '@/lib/product-taxonomy'
 import { getStatusBadgeClassName } from '@/lib/status-badge'
 import { fetchSuppliers } from '@/services/suppliers.service'
@@ -24,6 +25,7 @@ const TABS: { id: TabId; label: string }[] = [
 ]
 
 export function ProductDetailPage() {
+    const { canWrite } = useBillingAccess()
     const { productId } = useParams({ strict: false }) as { productId: string }
     const navigate = useNavigate()
     const queryClient = useQueryClient()
@@ -212,6 +214,7 @@ export function ProductDetailPage() {
                         <Button
                             variant="outline"
                             size="sm"
+                            disabled={!canWrite}
                             onClick={handleEditClick}
                         >
                             <Pencil className="size-4" />
@@ -220,6 +223,7 @@ export function ProductDetailPage() {
                         <Button
                             variant="destructive"
                             size="sm"
+                            disabled={!canWrite}
                             onClick={handleDeleteProduct}
                             loading={deleteProductMutation.isPending}
                         >
@@ -365,6 +369,7 @@ export function ProductDetailPage() {
                                                                     {!supplier.isDefault && (
                                                                         <button
                                                                             type="button"
+                                                                            disabled={!canWrite}
                                                                             onClick={() => handleSetDefault(supplier.supplierId, supplier.unitCost)}
                                                                             className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
                                                                         >
@@ -373,6 +378,7 @@ export function ProductDetailPage() {
                                                                     )}
                                                                     <button
                                                                         type="button"
+                                                                        disabled={!canWrite}
                                                                         onClick={() => openEditCostDialog(supplier.supplierId, supplier.unitCost, supplier.isDefault)}
                                                                         className="rounded-sm px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
                                                                     >
@@ -380,6 +386,7 @@ export function ProductDetailPage() {
                                                                     </button>
                                                                     <button
                                                                         type="button"
+                                                                        disabled={!canWrite}
                                                                         onClick={() => handleUnlinkSupplier(supplier.supplierId, supplier.supplierName)}
                                                                         className="rounded-sm px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors"
                                                                     >
@@ -438,7 +445,7 @@ export function ProductDetailPage() {
                                         <Button
                                             onClick={handleLinkSupplier}
                                             loading={createSupplierMutation.isPending}
-                                            disabled={createSupplierMutation.isPending || availableSuppliers.length === 0}
+                                            disabled={!canWrite || createSupplierMutation.isPending || availableSuppliers.length === 0}
                                             size="sm"
                                         >
                                             Link
@@ -470,13 +477,13 @@ export function ProductDetailPage() {
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                     e.preventDefault()
-                                    handleUpdateUnitCost()
+                                    if (canWrite) handleUpdateUnitCost()
                                 }
                             }}
                         />
                     </div>
                     <div className="flex gap-3">
-                        <Button onClick={handleUpdateUnitCost} loading={updateSupplierMutation.isPending}>
+                        <Button disabled={!canWrite} onClick={handleUpdateUnitCost} loading={updateSupplierMutation.isPending}>
                             Save
                         </Button>
                         <Button variant="outline" onClick={() => setEditCostDialog({ ...editCostDialog, open: false })}>

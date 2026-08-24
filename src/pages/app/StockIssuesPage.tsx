@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { APP_ROLES, hasRole } from '@/auth/roles'
 import { getApiErrorMessage } from '@/api/types'
 import { useAuth } from '@/hooks/use-auth'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import { getGroupLabel } from '@/lib/nav-groups'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, toast } from '@/components/ui'
 import { fetchProducts } from '@/services/products.service'
@@ -28,6 +29,7 @@ function createEmptyForm(): StockIssueFormState {
 
 export function StockIssuesPage() {
     const { user } = useAuth()
+    const { canWrite } = useBillingAccess()
     const queryClient = useQueryClient()
     const [isComposerOpen, setIsComposerOpen] = useState(false)
     const [formState, setFormState] = useState<StockIssueFormState>(createEmptyForm())
@@ -122,7 +124,7 @@ export function StockIssuesPage() {
                         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Record stock taken out for samples, internal use, disposals, and other controlled write-offs.</p>
                     </div>
                     {canIssueStock && (
-                        <Button onClick={() => { setIsComposerOpen(!isComposerOpen); if (isComposerOpen) { setFormState(createEmptyForm()); setFormError(null) } }}>
+                        <Button disabled={!canWrite} onClick={() => { setIsComposerOpen(!isComposerOpen); if (isComposerOpen) { setFormState(createEmptyForm()); setFormError(null) } }}>
                             {isComposerOpen ? 'Cancel' : 'Record Issue'}
                         </Button>
                     )}
@@ -137,56 +139,58 @@ export function StockIssuesPage() {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="warehouseId" required>Warehouse</Label>
-                                    <select id="warehouseId" value={formState.warehouseId} onChange={(e) => setFormState((prev) => ({ ...prev, warehouseId: e.target.value }))} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                                        <option value="">Select warehouse</option>
-                                        {(warehousesQuery.data?.data ?? []).map((w) => (<option key={w.warehouseId} value={w.warehouseId}>{w.name}</option>))}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="reason" required>Reason</Label>
-                                    <select id="reason" value={formState.reason} onChange={(e) => setFormState((prev) => ({ ...prev, reason: e.target.value as StockIssueReason }))} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                                        {Object.entries(STOCK_ISSUE_REASON).map(([label, value]) => (<option key={value} value={value}>{label}</option>))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="notes">Notes</Label>
-                                <Textarea id="notes" value={formState.notes} onChange={(e) => setFormState((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Optional notes about this issue" />
-                            </div>
-
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-sm font-medium">Line items</h3>
-                                    <Button type="button" variant="outline" onClick={addLine} className="w-full sm:w-auto">Add line</Button>
-                                </div>
-                                {formState.lines.map((line) => (
-                                    <div key={line.id} className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-[1fr_120px_auto] md:items-end">
-                                        <div className="space-y-2">
-                                            <Label>Product</Label>
-                                            <select value={line.productId} onChange={(e) => updateLine(line.id, 'productId', e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                                                <option value="">Select product</option>
-                                                {(productsQuery.data?.data ?? []).map((p) => (<option key={p.productId} value={p.productId}>{p.name} ({p.sku})</option>))}
-                                            </select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Quantity</Label>
-                                            <Input type="number" min="1" value={line.quantity} onChange={(e) => updateLine(line.id, 'quantity', e.target.value)} />
-                                        </div>
-                                        <Button type="button" variant="outline" onClick={() => removeLine(line.id)} disabled={formState.lines.length === 1}>Remove</Button>
+                            <fieldset disabled={!canWrite}>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="warehouseId" required>Warehouse</Label>
+                                        <select id="warehouseId" value={formState.warehouseId} onChange={(e) => setFormState((prev) => ({ ...prev, warehouseId: e.target.value }))} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                                            <option value="">Select warehouse</option>
+                                            {(warehousesQuery.data?.data ?? []).map((w) => (<option key={w.warehouseId} value={w.warehouseId}>{w.name}</option>))}
+                                        </select>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="reason" required>Reason</Label>
+                                        <select id="reason" value={formState.reason} onChange={(e) => setFormState((prev) => ({ ...prev, reason: e.target.value as StockIssueReason }))} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                                            {Object.entries(STOCK_ISSUE_REASON).map(([label, value]) => (<option key={value} value={value}>{label}</option>))}
+                                        </select>
+                                    </div>
+                                </div>
 
-                            {formError && <p className="text-sm text-destructive">{formError}</p>}
+                                <div className="space-y-2">
+                                    <Label htmlFor="notes">Notes</Label>
+                                    <Textarea id="notes" value={formState.notes} onChange={(e) => setFormState((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Optional notes about this issue" />
+                                </div>
 
-                            <div className="flex flex-wrap gap-3">
-                                <Button type="submit" loading={createMutation.isPending}>Record Stock Issue</Button>
-                                <Button type="button" variant="outline" onClick={() => { setIsComposerOpen(false); setFormState(createEmptyForm()); setFormError(null) }}>Cancel</Button>
-                            </div>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-sm font-medium">Line items</h3>
+                                        <Button type="button" variant="outline" onClick={addLine} className="w-full sm:w-auto">Add line</Button>
+                                    </div>
+                                    {formState.lines.map((line) => (
+                                        <div key={line.id} className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-[1fr_120px_auto] md:items-end">
+                                            <div className="space-y-2">
+                                                <Label>Product</Label>
+                                                <select value={line.productId} onChange={(e) => updateLine(line.id, 'productId', e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                                                    <option value="">Select product</option>
+                                                    {(productsQuery.data?.data ?? []).map((p) => (<option key={p.productId} value={p.productId}>{p.name} ({p.sku})</option>))}
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Quantity</Label>
+                                                <Input type="number" min="1" value={line.quantity} onChange={(e) => updateLine(line.id, 'quantity', e.target.value)} />
+                                            </div>
+                                            <Button type="button" variant="outline" onClick={() => removeLine(line.id)} disabled={formState.lines.length === 1}>Remove</Button>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {formError && <p className="text-sm text-destructive">{formError}</p>}
+
+                                <div className="flex flex-wrap gap-3">
+                                    <Button type="submit" loading={createMutation.isPending}>Record Stock Issue</Button>
+                                    <Button type="button" variant="outline" onClick={() => { setIsComposerOpen(false); setFormState(createEmptyForm()); setFormError(null) }}>Cancel</Button>
+                                </div>
+                            </fieldset>
                         </form>
                     </CardContent>
                 </Card>

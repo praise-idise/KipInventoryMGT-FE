@@ -8,6 +8,7 @@ import { getApiErrorMessage } from '@/api/types'
 import { PurchaseOrderDraftFormCard, buildPurchaseOrderDraftPatch, createEmptyPurchaseOrderForm, createPurchaseOrderEditForm, validatePurchaseOrderDraft, type PurchaseOrderFormState } from '@/components/app/PurchaseOrderDraftForm'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea, toast } from '@/components/ui'
 import { useAuth } from '@/hooks/use-auth'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 import { formatStatusLabel, getStatusBadgeClassName } from '@/lib/status-badge'
 import { APPROVAL_DECISION_STATUS, APPROVAL_DOCUMENT_TYPE, fetchApprovalHistory } from '@/services/approvals.service'
 import { receiveGoods } from '@/services/goods-receipts.service'
@@ -33,6 +34,7 @@ export function PurchaseOrderDetailPage() {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const { user } = useAuth()
+    const { canWrite } = useBillingAccess()
     const [activeTab, setActiveTab] = useState<'overview' | 'lines'>('overview')
     const [isEditing, setIsEditing] = useState(false)
     const [formState, setFormState] = useState<PurchaseOrderFormState>(createEmptyPurchaseOrderForm)
@@ -158,16 +160,16 @@ export function PurchaseOrderDetailPage() {
 
     const orderStatus = order?.status
     const canEditDraft = (
-        orderStatus === PURCHASE_ORDER_STATUS.DRAFT || orderStatus === PURCHASE_ORDER_STATUS.CHANGES_REQUESTED
+        canWrite && (orderStatus === PURCHASE_ORDER_STATUS.DRAFT || orderStatus === PURCHASE_ORDER_STATUS.CHANGES_REQUESTED)
     )
     const canDeleteDraft = canEditDraft
     const canSubmitDraft = canEditDraft
-    const canCancelOrder = (
+    const canCancelOrder = canWrite && (
         orderStatus === PURCHASE_ORDER_STATUS.PENDING_APPROVAL
         || orderStatus === PURCHASE_ORDER_STATUS.APPROVED
         || orderStatus === PURCHASE_ORDER_STATUS.PARTIALLY_RECEIVED
     )
-    const canReceiveGoods = canReceive && (
+    const canReceiveGoods = canWrite && canReceive && (
         orderStatus === PURCHASE_ORDER_STATUS.APPROVED
         || orderStatus === PURCHASE_ORDER_STATUS.PARTIALLY_RECEIVED
     )
@@ -287,6 +289,7 @@ export function PurchaseOrderDetailPage() {
                     submitLabel="Save Changes"
                     cancelLabel="Close"
                     submitLoading={updateMutation.isPending}
+                    canWrite={canWrite}
                     formState={formState}
                     setFormState={setFormState}
                     formError={formError}
@@ -325,122 +328,122 @@ export function PurchaseOrderDetailPage() {
             </div>
 
             {activeTab === 'overview' && (<>
-            <Card className="bg-surface/95">
-                <CardHeader>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                            <CardTitle>Purchase Order Details</CardTitle>
-                        </div>
-                        {order && (
-                            <div className="flex flex-wrap gap-2">
-                                {canEditDraft && (
-                                    <Button variant="outline" onClick={openEdit}>
-                                        Edit
-                                    </Button>
-                                )}
-                                {canSubmitDraft && (
-                                    <Button
-                                        onClick={() => submitMutation.mutate(order.purchaseOrderId)}
-                                        loading={submitMutation.isPending}
-                                    >
-                                        Submit
-                                    </Button>
-                                )}
-                                {canDeleteDraft && (
-                                    <Button
-                                        variant="destructive"
-                                        onClick={() => {
-                                            if (!window.confirm(`Delete draft ${order.purchaseOrderNumber}?`)) {
-                                                return
-                                            }
-
-                                            deleteDraftMutation.mutate(order.purchaseOrderId)
-                                        }}
-                                        loading={deleteDraftMutation.isPending}
-                                    >
-                                        Delete Draft
-                                    </Button>
-                                )}
-                                {canCancelOrder && (
-                                    <Button
-                                        variant="destructive"
-                                        onClick={() => {
-                                            if (!window.confirm(`Cancel ${order.purchaseOrderNumber}?`)) {
-                                                return
-                                            }
-
-                                            cancelMutation.mutate(order.purchaseOrderId)
-                                        }}
-                                        loading={cancelMutation.isPending}
-                                    >
-                                        Cancel Order
-                                    </Button>
-                                )}
-                                {canReceiveGoods && (
-                                    <Button variant="secondary" onClick={openReceive}>
-                                        Receive Goods
-                                    </Button>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {detailQuery.isLoading ? (
-                        <p className="text-sm text-muted-foreground">Loading purchase order detail...</p>
-                    ) : detailQuery.isError || !order ? (
-                        <p className="text-sm text-destructive">Unable to load purchase order detail.</p>
-                    ) : (
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <p><span className="text-muted-foreground">Supplier:</span> {supplierNames[order.supplierId] ?? order.supplierId}</p>
-                            <p><span className="text-muted-foreground">Warehouse:</span> {order.warehouseName ?? warehouseNames[order.warehouseId] ?? order.warehouseId}</p>
-                            <p><span className="text-muted-foreground">Ordered:</span> {new Date(order.orderedAt).toLocaleString()}</p>
-                            <p><span className="text-muted-foreground">Expected Arrival:</span> {order.expectedArrivalDate ? new Date(order.expectedArrivalDate).toLocaleDateString() : '—'}</p>
-                            <p><span className="text-muted-foreground">Purchase Order ID:</span> {order.purchaseOrderId}</p>
-                            <p><span className="text-muted-foreground">Status:</span> {formatStatusLabel(order.status)}</p>
-                            <p className="md:col-span-2"><span className="text-muted-foreground">Notes:</span> {order.notes || '—'}</p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-            </>)}
-            {activeTab === 'lines' && (<>
-            {order && (
                 <Card className="bg-surface/95">
                     <CardHeader>
-                        <CardTitle>Order Lines</CardTitle>
-                        <CardDescription>Line items included on this purchase order.</CardDescription>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <CardTitle>Purchase Order Details</CardTitle>
+                            </div>
+                            {order && (
+                                <div className="flex flex-wrap gap-2">
+                                    {canEditDraft && (
+                                        <Button variant="outline" onClick={openEdit}>
+                                            Edit
+                                        </Button>
+                                    )}
+                                    {canSubmitDraft && (
+                                        <Button
+                                            onClick={() => submitMutation.mutate(order.purchaseOrderId)}
+                                            loading={submitMutation.isPending}
+                                        >
+                                            Submit
+                                        </Button>
+                                    )}
+                                    {canDeleteDraft && (
+                                        <Button
+                                            variant="destructive"
+                                            onClick={() => {
+                                                if (!window.confirm(`Delete draft ${order.purchaseOrderNumber}?`)) {
+                                                    return
+                                                }
+
+                                                deleteDraftMutation.mutate(order.purchaseOrderId)
+                                            }}
+                                            loading={deleteDraftMutation.isPending}
+                                        >
+                                            Delete Draft
+                                        </Button>
+                                    )}
+                                    {canCancelOrder && (
+                                        <Button
+                                            variant="destructive"
+                                            onClick={() => {
+                                                if (!window.confirm(`Cancel ${order.purchaseOrderNumber}?`)) {
+                                                    return
+                                                }
+
+                                                cancelMutation.mutate(order.purchaseOrderId)
+                                            }}
+                                            loading={cancelMutation.isPending}
+                                        >
+                                            Cancel Order
+                                        </Button>
+                                    )}
+                                    {canReceiveGoods && (
+                                        <Button variant="secondary" onClick={openReceive}>
+                                            Receive Goods
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </CardHeader>
                     <CardContent>
-                        {!order.lines?.length ? (
-                            <p className="text-sm text-muted-foreground">No lines are attached to this purchase order.</p>
+                        {detailQuery.isLoading ? (
+                            <p className="text-sm text-muted-foreground">Loading purchase order detail...</p>
+                        ) : detailQuery.isError || !order ? (
+                            <p className="text-sm text-destructive">Unable to load purchase order detail.</p>
                         ) : (
-                            <div className="overflow-x-auto rounded-lg border border-border">
-                                <table className="w-max min-w-full divide-y divide-border text-sm">
-                                    <thead className="bg-muted/40 text-left text-muted-foreground">
-                                        <tr>
-                                            <th className="px-4 py-3 font-medium">Product</th>
-                                            <th className="px-4 py-3 font-medium">Ordered</th>
-                                            <th className="px-4 py-3 font-medium">Received</th>
-                                            <th className="px-4 py-3 font-medium">Unit Cost</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-border">
-                                        {order.lines.map((line) => (
-                                            <tr key={line.purchaseOrderLineId}>
-                                                <td className="px-4 py-3">{line.productName ?? productNames[line.productId] ?? line.productId}</td>
-                                                <td className="px-4 py-3">{line.quantityOrdered}</td>
-                                                <td className="px-4 py-3">{line.quantityReceived}</td>
-                                                <td className="px-4 py-3">{line.unitCost}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <p><span className="text-muted-foreground">Supplier:</span> {supplierNames[order.supplierId] ?? order.supplierId}</p>
+                                <p><span className="text-muted-foreground">Warehouse:</span> {order.warehouseName ?? warehouseNames[order.warehouseId] ?? order.warehouseId}</p>
+                                <p><span className="text-muted-foreground">Ordered:</span> {new Date(order.orderedAt).toLocaleString()}</p>
+                                <p><span className="text-muted-foreground">Expected Arrival:</span> {order.expectedArrivalDate ? new Date(order.expectedArrivalDate).toLocaleDateString() : '—'}</p>
+                                <p><span className="text-muted-foreground">Purchase Order ID:</span> {order.purchaseOrderId}</p>
+                                <p><span className="text-muted-foreground">Status:</span> {formatStatusLabel(order.status)}</p>
+                                <p className="md:col-span-2"><span className="text-muted-foreground">Notes:</span> {order.notes || '—'}</p>
                             </div>
                         )}
                     </CardContent>
                 </Card>
-            )}
+            </>)}
+            {activeTab === 'lines' && (<>
+                {order && (
+                    <Card className="bg-surface/95">
+                        <CardHeader>
+                            <CardTitle>Order Lines</CardTitle>
+                            <CardDescription>Line items included on this purchase order.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {!order.lines?.length ? (
+                                <p className="text-sm text-muted-foreground">No lines are attached to this purchase order.</p>
+                            ) : (
+                                <div className="overflow-x-auto rounded-lg border border-border">
+                                    <table className="w-max min-w-full divide-y divide-border text-sm">
+                                        <thead className="bg-muted/40 text-left text-muted-foreground">
+                                            <tr>
+                                                <th className="px-4 py-3 font-medium">Product</th>
+                                                <th className="px-4 py-3 font-medium">Ordered</th>
+                                                <th className="px-4 py-3 font-medium">Received</th>
+                                                <th className="px-4 py-3 font-medium">Unit Cost</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border">
+                                            {order.lines.map((line) => (
+                                                <tr key={line.purchaseOrderLineId}>
+                                                    <td className="px-4 py-3">{line.productName ?? productNames[line.productId] ?? line.productId}</td>
+                                                    <td className="px-4 py-3">{line.quantityOrdered}</td>
+                                                    <td className="px-4 py-3">{line.quantityReceived}</td>
+                                                    <td className="px-4 py-3">{line.unitCost}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
             </>)}
             {order && canReceiveGoods && isReceiveOpen && (
                 <Card className="bg-surface/95">

@@ -23,6 +23,7 @@ import {
 import { getApiErrorMessage, type Pagination } from '@/api/types'
 import { getGroupLabel } from '@/lib/nav-groups'
 import { cn } from '@/lib/cn'
+import { useBillingAccess } from '@/hooks/use-billing-access'
 
 type CrudFieldType = 'text' | 'email' | 'number' | 'textarea' | 'checkbox' | 'select' | 'searchableSelect'
 
@@ -143,6 +144,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
     const pathname = useRouterState({ select: (s) => s.location.pathname })
     const queryClient = useQueryClient()
     const { confirm, dialog } = useConfirm()
+    const { canWrite } = useBillingAccess()
     const [pageNumber, setPageNumber] = useState(1)
     const [pageSize] = useState(7)
     const [searchInput, setSearchInput] = useState('')
@@ -526,7 +528,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
                         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
                         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{description}</p>
                     </div>
-                    <Button onClick={openCreate}>Add {entityLabel}</Button>
+                    <Button onClick={openCreate} disabled={!canWrite}>Add {entityLabel}</Button>
                 </div>
             </section>
 
@@ -540,6 +542,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                            <fieldset disabled={!canWrite}>
                             <div className="grid gap-4 md:grid-cols-2">
                                 {visibleFields.map((field) => (
                                     <div key={field.name as string} className={cn(field.type === 'textarea' && 'md:col-span-2')}>
@@ -554,10 +557,11 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
                                 <Button type="submit" loading={isSubmitting || createMutation.isPending || updateMutation.isPending}>
                                     {mode === 'create' ? `Create ${entityLabel}` : `Save Changes`}
                                 </Button>
-                                <Button type="button" variant="outline" onClick={closeForm}>
-                                    Cancel
-                                </Button>
                             </div>
+                            </fieldset>
+                            <Button type="button" variant="outline" onClick={closeForm}>
+                                Cancel
+                            </Button>
                         </form>
                     </CardContent>
                 </Card>
@@ -760,7 +764,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
                                                             className="w-16 min-w-16 px-4 py-3 align-top whitespace-nowrap"
                                                             onClick={(e) => e.stopPropagation()}
                                                         >
-                                                            <Popover
+                                                            {canWrite ? <Popover
                                                                 trigger={
                                                                     <span className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted">
                                                                         <EllipsisVertical className="size-4" />
@@ -784,7 +788,7 @@ export function CrudResourcePage<TItem, TForm extends FieldValues>({
                                                                         Delete
                                                                     </button>
                                                                 </div>
-                                                            </Popover>
+                                                            </Popover> : <span className="text-xs text-muted-foreground">View only</span>}
                                                         </td>
                                                     )
                                                 }
