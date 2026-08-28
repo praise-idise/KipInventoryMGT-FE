@@ -1,20 +1,15 @@
-import type { BillingAccessState } from "@/services/billing.service";
+import { BILLING_ACCESS_STATE, type BillingAccessState } from "@/lib/domain-values";
 
 export const BILLING_MUTATION_BLOCKED_STATES = [
-  "ReadOnly",
-  "Locked",
+  BILLING_ACCESS_STATE.READ_ONLY,
+  BILLING_ACCESS_STATE.LOCKED,
 ] as const satisfies readonly BillingAccessState[];
 
 let currentBillingState: BillingAccessState | null = null;
 const listeners = new Set<() => void>();
 
 export function isBillingMutationBlocked(state: BillingAccessState | null) {
-  return (
-    state !== null &&
-    BILLING_MUTATION_BLOCKED_STATES.includes(
-      state as (typeof BILLING_MUTATION_BLOCKED_STATES)[number],
-    )
-  );
+  return BILLING_MUTATION_BLOCKED_STATES.some((blocked) => blocked === state);
 }
 
 export function getBillingAccessState() {

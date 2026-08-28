@@ -1,6 +1,7 @@
 import { apiClient } from "@/api/client";
+import type { BillingAccessState } from "@/lib/domain-values";
 
-export type BillingAccessState = "Trialing" | "Active" | "PastDue" | "ReadOnly" | "Locked";
+export type { BillingAccessState };
 
 export interface PlanItem {
   planId: string;
@@ -27,6 +28,8 @@ export interface BillingCurrent {
   trialEndsAt?: string | null;
   readOnlyUntil?: string | null;
   currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  canKeep?: boolean;
   usage: {
     warehouses: number;
     users: number;

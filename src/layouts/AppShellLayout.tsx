@@ -8,6 +8,7 @@ import { Theme, useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/cn'
 import { navGroups, type NavGroup } from '@/lib/nav-groups'
 import { BillingAccessProvider, useBillingAccess } from '@/hooks/use-billing-access'
+import { BILLING_ACCESS_STATE } from '@/lib/domain-values'
 
 function formatDate(value?: string | null) {
     if (!value) return 'soon'
@@ -274,7 +275,7 @@ function AppShellContent() {
                         </div>
                     </header>
 
-                    {billingState === 'ReadOnly' && (
+                    {billingState === BILLING_ACCESS_STATE.READ_ONLY && (
                         <div className="border-b border-amber-600/20 bg-amber-500/10 px-4 py-2.5 text-center text-sm text-amber-700 dark:text-amber-300">
                             Your trial has ended — you're in view-only mode until {formatDate(current?.readOnlyUntil)}.{' '}
                             <Link to="/app/billing" className="font-medium underline">
@@ -283,7 +284,7 @@ function AppShellContent() {
                         </div>
                     )}
 
-                    {billingState === 'Locked' && (
+                    {billingState === BILLING_ACCESS_STATE.LOCKED && (
                         <div className="border-b border-destructive/20 bg-destructive/10 px-4 py-2.5 text-center text-sm text-destructive">
                             Your workspace is locked.{' '}
                             <Link to="/app/billing" className="font-medium underline">

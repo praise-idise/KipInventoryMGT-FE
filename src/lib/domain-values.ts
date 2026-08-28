@@ -78,3 +78,13 @@ export const APPROVAL_DECISION_STATUS = {
 } as const;
 
 export type ApprovalDecisionStatus = ValueOf<typeof APPROVAL_DECISION_STATUS>;
+
+export const BILLING_ACCESS_STATE = {
+  TRIALING: "Trialing",
+  ACTIVE: "Active",
+  PAST_DUE: "PastDue",
+  READ_ONLY: "ReadOnly",
+  LOCKED: "Locked",
+} as const;
+
+export type BillingAccessState = ValueOf<typeof BILLING_ACCESS_STATE>;

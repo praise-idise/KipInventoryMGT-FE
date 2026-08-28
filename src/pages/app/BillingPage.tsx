@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getApiErrorMessage } from '@/api/types'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, toast, useConfirm } from '@/components/ui'
 import { getStatusBadgeClassName } from '@/lib/status-badge'
 import { useAuth } from '@/hooks/use-auth'
 import { APP_ROLES } from '@/auth/roles'
+import { BILLING_ACCESS_STATE } from '@/lib/domain-values'
 import {
     cancelSubscription,
     fetchBillingCurrent,
@@ -24,11 +26,11 @@ function formatDate(value?: string | null) {
 
 function stateLabel(state: BillingCurrent['state']) {
     switch (state) {
-        case 'Trialing': return 'Free trial'
-        case 'Active': return 'Active'
-        case 'PastDue': return 'Past due'
-        case 'ReadOnly': return 'Trial ended — read only'
-        case 'Locked': return 'Locked'
+        case BILLING_ACCESS_STATE.TRIALING: return 'Free trial'
+        case BILLING_ACCESS_STATE.ACTIVE: return 'Active'
+        case BILLING_ACCESS_STATE.PAST_DUE: return 'Past due'
+        case BILLING_ACCESS_STATE.READ_ONLY: return 'Trial ended — read only'
+        case BILLING_ACCESS_STATE.LOCKED: return 'Locked'
     }
 }
 
@@ -65,6 +67,8 @@ export function BillingPage() {
         staleTime: 5 * 60_000,
     })
 
+    const [pendingTier, setPendingTier] = useState<PlanItem['tier'] | null>(null)
+
     const subscribeMutation = useMutation({
         mutationFn: subscribeToPlan,
         onSuccess: async (response) => {
@@ -73,9 +77,12 @@ export function BillingPage() {
                 window.location.href = authorizationUrl
                 return
             }
-            toast.error('Unable to start the checkout. Please try again.')
+            setPendingTier(null)
+            await queryClient.invalidateQueries({ queryKey: ['billing'] })
+            toast.success(response.message || 'Plan updated.')
         },
         onError: (error) => {
+            setPendingTier(null)
             toast.error(getApiErrorMessage(error, 'Unable to start the checkout.'))
         },
     })
@@ -92,14 +99,21 @@ export function BillingPage() {
     })
 
     async function handleCancel() {
+        const endsOn = formatDate(currentQuery.data?.currentPeriodEnd)
         const confirmed = await confirm({
             title: 'Cancel subscription',
-            description: 'Cancel your subscription? Your workspace will be locked once the current period ends.',
-            confirmLabel: 'Cancel subscription',
+            description: `You'll keep full access until ${endsOn}. After that the workspace locks and you won't be charged again.`,
+            confirmLabel: 'Yes, cancel',
             variant: 'danger',
         })
         if (!confirmed) return
         await cancelMutation.mutateAsync()
+    }
+
+    function handleSubscribe(tier: PlanItem['tier']) {
+        if (pendingTier) return
+        setPendingTier(tier)
+        subscribeMutation.mutate(tier)
     }
 
     const current = currentQuery.data
@@ -130,22 +144,27 @@ export function BillingPage() {
                                 </Badge>
                             </div>
 
-                            {current.state === 'Trialing' && (
+                            {current.state === BILLING_ACCESS_STATE.TRIALING && (
                                 <p className="text-sm text-muted-foreground">
                                     Trial ends {formatDate(current.trialEndsAt)}. After that you get 30 days of read-only access before the workspace locks.
                                 </p>
                             )}
-                            {current.state === 'ReadOnly' && (
+                            {current.state === BILLING_ACCESS_STATE.READ_ONLY && (
                                 <p className="text-sm text-amber-600 dark:text-amber-400">
                                     Your trial has ended — you can still view your data until {formatDate(current.readOnlyUntil)}, then the workspace locks.
                                 </p>
                             )}
-                            {isAdmin && current.state === 'Active' && (
+                            {isAdmin && current.state === BILLING_ACCESS_STATE.ACTIVE && current.cancelAtPeriodEnd && (
+                                <p className="text-sm text-amber-600 dark:text-amber-400">
+                                    Cancellation is scheduled. You keep access until {formatDate(current.currentPeriodEnd)}.
+                                </p>
+                            )}
+                            {isAdmin && current.state === BILLING_ACCESS_STATE.ACTIVE && !current.cancelAtPeriodEnd && (
                                 <p className="text-sm text-muted-foreground">
                                     Renews on {formatDate(current.currentPeriodEnd)}.
                                 </p>
                             )}
-                            {current.state === 'Locked' && (
+                            {current.state === BILLING_ACCESS_STATE.LOCKED && (
                                 <p className="text-sm text-destructive">Your workspace is locked. Subscribe to regain access.</p>
                             )}
 
@@ -170,7 +189,7 @@ export function BillingPage() {
                                 </div>
                             </div>
 
-                            {current.state === 'Active' && (
+                            {isAdmin && current.state === BILLING_ACCESS_STATE.ACTIVE && !current.cancelAtPeriodEnd && (
                                 <Button variant="outline" onClick={handleCancel} loading={cancelMutation.isPending}>
                                     Cancel subscription
                                 </Button>
@@ -180,23 +199,35 @@ export function BillingPage() {
                 </CardContent>
             </Card>
 
-            <section className="grid gap-4 lg:grid-cols-3">
+            <section className="grid isolate grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {plans.map((plan) => {
                     const isCurrent = current?.plan?.planId === plan.planId
+                    const showKeep =
+                        isAdmin &&
+                        isCurrent &&
+                        current?.state === BILLING_ACCESS_STATE.ACTIVE &&
+                        current.canKeep
+                    const alreadyOnThisPaidPlan =
+                        isCurrent &&
+                        current?.state === BILLING_ACCESS_STATE.ACTIVE &&
+                        !current.cancelAtPeriodEnd
+                    const showChoose = isAdmin && !showKeep && !alreadyOnThisPaidPlan
+                    const isThisPending = pendingTier === plan.tier
+
                     return (
-                        <Card key={plan.planId} className="bg-surface/95">
+                        <Card key={plan.planId} className="flex h-full min-w-0 flex-col overflow-hidden bg-surface/95">
                             <CardHeader>
-                                <CardTitle className="flex items-center justify-between">
-                                    {plan.name}
+                                <CardTitle className="flex min-w-0 items-center justify-between gap-2">
+                                    <span className="truncate">{plan.name}</span>
                                     {isCurrent && <Badge variant="muted">Current</Badge>}
                                 </CardTitle>
                                 <CardDescription>{formatNaira(plan.monthlyPriceNaira)}/month</CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-4">
+                            <CardContent className="flex flex-1 flex-col space-y-4">
                                 <p className="text-sm text-muted-foreground">
                                     {plan.maxWarehouses ?? 'Unlimited'} warehouses · {plan.maxUsers ?? 'Unlimited'} users
                                 </p>
-                                <ul className="space-y-2 text-sm">
+                                <ul className="flex-1 space-y-2 text-sm">
                                     {featureLines(plan).map((feature) => (
                                         <li key={feature.label} className="flex items-center gap-2">
                                             <span className={feature.included ? 'text-success' : 'text-muted-foreground/40'}>
@@ -206,11 +237,20 @@ export function BillingPage() {
                                         </li>
                                     ))}
                                 </ul>
-                                {isAdmin && !isCurrent && (
+                                {showKeep && (
                                     <Button
-                                        className="w-full"
-                                        onClick={() => subscribeMutation.mutate(plan.tier)}
-                                        loading={subscribeMutation.isPending}
+                                        className="mt-auto w-full"
+                                        onClick={() => handleSubscribe(plan.tier)}
+                                        loading={isThisPending}
+                                    >
+                                        Keep {plan.name}
+                                    </Button>
+                                )}
+                                {showChoose && (
+                                    <Button
+                                        className="mt-auto w-full"
+                                        onClick={() => handleSubscribe(plan.tier)}
+                                        loading={isThisPending}
                                     >
                                         Choose {plan.name}
                                     </Button>
