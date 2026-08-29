@@ -32,7 +32,7 @@ export function CheckEmailPage() {
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-6 text-center">
                 <p className="text-sm text-muted-foreground">
-                    Please click the link that was sent to <span className="font-medium text-foreground">{email}</span> to verify your email.
+                    Click the link we sent to <span className="font-medium text-foreground">{email}</span> to verify your email. You will be signed in automatically and taken to your dashboard.
                 </p>
                 <Button onClick={handleResend} loading={isSending} disabled={!email || isCoolingDown}>
                     {isCoolingDown ? `Resend available in ${formatCooldown(remainingSeconds)}` : 'Resend'}

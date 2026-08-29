@@ -85,5 +85,5 @@ export async function resendVerification(payload: ResendVerificationRequest) {
 
 export async function verifyEmail(email: string, token: string) {
   const params = new URLSearchParams({ email, token });
-  return apiClient.get<null>(`/Auth/verify-email?${params.toString()}`);
+  return apiClient.get<LoginResponse>(`/Auth/verify-email?${params.toString()}`);
 }

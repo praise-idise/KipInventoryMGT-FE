@@ -4,15 +4,19 @@ import { AlertCircle, CheckCircle, Loader } from 'lucide-react'
 import { isApiError } from '@/api/types'
 import { formatCooldown, useResendVerificationCooldown } from '@/auth/use-resend-verification-cooldown'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { useAuth } from '@/hooks/use-auth'
 import { resendVerification, verifyEmail } from '@/services/auth.service'
+
+type VerifyStatus = 'loading' | 'redirecting' | 'success' | 'error' | 'resending' | 'ready-to-resend'
 
 export function VerifyEmailPage() {
     const navigate = useNavigate()
+    const { establishSession } = useAuth()
     const search = useMemo(() => new URLSearchParams(window.location.search), [])
     const email = (search.get('email') ?? '').trim()
     const token = (search.get('token') ?? '').trim()
     const hasRequestedVerification = useRef(false)
-    const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'resending' | 'ready-to-resend'>('loading')
+    const [status, setStatus] = useState<VerifyStatus>('loading')
     const [message, setMessage] = useState<string | null>(null)
     const { remainingSeconds, isCoolingDown, applyCooldown } = useResendVerificationCooldown(email)
 
@@ -37,13 +41,21 @@ export function VerifyEmailPage() {
 
         verifyEmail(email, token)
             .then((response) => {
-                setMessage(response.message || 'Email verified successfully. You can sign in now.')
-                setStatus('success')
+                const data = response.data
+                if (!data?.token || !data.userId || !data.email) {
+                    setMessage(response.message || 'Email verified. Please sign in to continue.')
+                    setStatus('success')
+                    return
+                }
+
+                establishSession(data)
+                setStatus('redirecting')
+                navigate({ to: '/app/dashboard' })
             })
             .catch((error) => {
                 if (isApiError(error)) {
                     if (error.message.toLowerCase().includes('already verified')) {
-                        setMessage('Email is already verified. You can sign in now.')
+                        setMessage('Email is already verified. Please sign in to continue.')
                         setStatus('success')
                         return
                     }
@@ -56,7 +68,7 @@ export function VerifyEmailPage() {
                 setMessage('Unexpected error occurred while verifying email.')
                 setStatus(email ? 'ready-to-resend' : 'error')
             })
-    }, [email, token])
+    }, [email, establishSession, navigate, token])
 
     async function handleResendVerification() {
         if (!email || isCoolingDown) {
@@ -76,12 +88,16 @@ export function VerifyEmailPage() {
         }
     }
 
-    if (status === 'loading') {
+    if (status === 'loading' || status === 'redirecting') {
         return (
             <Card className="border-primary/20 bg-surface/95 shadow-xl shadow-primary/5">
                 <CardHeader>
-                    <CardTitle>Verifying email</CardTitle>
-                    <CardDescription>Please wait while we confirm your verification link.</CardDescription>
+                    <CardTitle>{status === 'redirecting' ? 'Signing you in' : 'Verifying email'}</CardTitle>
+                    <CardDescription>
+                        {status === 'redirecting'
+                            ? 'Your email is confirmed. Taking you to your dashboard.'
+                            : 'Please wait while we confirm your verification link.'}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="flex justify-center py-4">
                     <Loader className="size-8 animate-spin text-primary" />
@@ -101,7 +117,7 @@ export function VerifyEmailPage() {
                     <CardDescription>Your account is ready to use.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">{message ?? 'Email verified successfully. You can sign in now.'}</p>
+                    <p className="text-sm text-muted-foreground">{message ?? 'Email verified successfully.'}</p>
                     <Button className="w-full" onClick={() => navigate({ to: '/auth/login' })}>
                         Go to sign in
                     </Button>

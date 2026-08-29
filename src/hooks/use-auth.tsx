@@ -1,12 +1,13 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { clearAuthSession, getAccessToken, getAuthUser, setAuthSession, type AuthUser } from '@/auth/session'
-import { login as loginRequest, logout as logoutRequest } from '@/services/auth.service'
+import { login as loginRequest, logout as logoutRequest, type LoginResponse } from '@/services/auth.service'
 
 interface AuthContextValue {
     user: AuthUser | null
     token: string | null
     isAuthenticated: boolean
     login: (payload: { email: string; password: string }) => Promise<void>
+    establishSession: (data: LoginResponse) => void
     logout: () => Promise<void>
 }
 
@@ -57,12 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [])
 
-    async function login(payload: { email: string; password: string }) {
-        const response = await loginRequest(payload)
-        const data = response.data
-
+    const establishSession = useCallback((data: LoginResponse) => {
         if (!data.token || !data.userId || !data.email) {
-            throw new Error('Login response is missing required auth fields.')
+            throw new Error('Auth response is missing required auth fields.')
         }
 
         const nextUser: AuthUser = {
@@ -75,7 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(data.token)
         setUser(nextUser)
         broadcastAuthChange('login')
-    }
+    }, [])
+
+    const login = useCallback(async (payload: { email: string; password: string }) => {
+        const response = await loginRequest(payload)
+        establishSession(response.data)
+    }, [establishSession])
 
     function logout() {
         const logoutRequestPromise = logoutRequest().catch(() => {
@@ -97,9 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             token,
             isAuthenticated: Boolean(token),
             login,
+            establishSession,
             logout,
         }),
-        [user, token],
+        [user, token, login, establishSession],
     )
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
