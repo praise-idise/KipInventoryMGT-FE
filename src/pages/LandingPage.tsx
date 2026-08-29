@@ -144,7 +144,7 @@ export function LandingPage() {
                     <div className="flex min-w-0 items-center gap-3">
                         <Logo />
                         <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold">KIP Inventory</p>
+                            <p className="truncate text-sm font-semibold">Kip Inventory</p>
                             <p className="hidden text-xs text-muted-foreground sm:block">Multi-warehouse stock control</p>
                         </div>
                     </div>
@@ -257,7 +257,7 @@ export function LandingPage() {
                     <div className="max-w-2xl">
                         <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">What you can do today</h2>
                         <p className="mt-3 text-muted-foreground">
-                            KIP Inventory covers the day-to-day work of running stock across one or more locations.
+                            Kip Inventory covers the day-to-day work of running stock across one or more locations.
                         </p>
                     </div>
 

@@ -72,7 +72,7 @@ export function AcceptInvitationPage() {
         <Card className="border-primary/20 bg-surface/95 shadow-xl shadow-primary/5">
             <CardHeader>
                 <CardTitle>Accept your invitation</CardTitle>
-                <CardDescription>Join your team on KIP Inventory.</CardDescription>
+                <CardDescription>Join your team on Kip Inventory.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 {acceptedOrganization ? (

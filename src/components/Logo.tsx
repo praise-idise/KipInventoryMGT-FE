@@ -16,7 +16,7 @@ export function Logo({ className, showName = false }: LogoProps) {
             <span className="inline-flex size-9 items-center justify-center rounded-md bg-primary text-white">
                 <Boxes className="size-5" />
             </span>
-            {showName && <span className="text-xl font-bold tracking-tight">KipInventory</span>}
+            {showName && <span className="text-xl font-bold tracking-tight">Kip Inventory</span>}
         </span>
     )
 }

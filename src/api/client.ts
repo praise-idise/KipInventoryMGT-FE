@@ -20,7 +20,7 @@ function assertBillingWriteAllowed(path: string, method: string) {
     throw {
       success: false,
       statusCode: 403,
-      message: "Your trial has ended. Subscribe to continue using KIP Inventory.",
+      message: "Your trial has ended. Subscribe to continue using Kip Inventory.",
     } satisfies ApiError;
   }
 }

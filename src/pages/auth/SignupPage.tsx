@@ -106,7 +106,7 @@ export function SignupPage() {
         <Card className="border-primary/20 bg-surface/95 shadow-xl shadow-primary/5">
             <CardHeader>
                 <CardTitle>Create account</CardTitle>
-                <CardDescription>Sign up for KIP Inventory and verify your email to continue.</CardDescription>
+                <CardDescription>Sign up for Kip Inventory and verify your email to continue.</CardDescription>
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

@@ -242,7 +242,7 @@ function AppShellContent() {
                     <div className="mb-5 flex items-center gap-3">
                         <Logo />
                         <div>
-                            <p className="text-sm font-semibold">KIP Inventory</p>
+                            <p className="text-sm font-semibold">Kip Inventory</p>
                             <p className="text-xs text-muted-foreground">Operations Workspace</p>
                         </div>
                     </div>
@@ -325,7 +325,7 @@ function AppShellContent() {
                             <div className="flex items-center gap-3">
                                 <Logo />
                                 <div>
-                                    <p className="text-sm font-semibold">KIP Inventory</p>
+                                    <p className="text-sm font-semibold">Kip Inventory</p>
                                     <p className="text-xs text-muted-foreground">Operations Workspace</p>
                                 </div>
                             </div>

@@ -24,8 +24,8 @@ export default defineConfig({
       ],
       manifest: {
         id: "/",
-        name: "KIP Inventory",
-        short_name: "KIP Inventory",
+        name: "Kip Inventory",
+        short_name: "Kip Inventory",
         description:
           "Multi-warehouse inventory management for stock tracking, purchase orders, transfers, and approvals.",
         start_url: "/",
@@ -44,14 +44,14 @@ export default defineConfig({
             sizes: "1384x932",
             type: "image/png",
             form_factor: "wide",
-            label: "KIP Inventory homepage on desktop",
+            label: "Kip Inventory homepage on desktop",
           },
           {
             src: "/screenshots/mobile.png",
             sizes: "495x876",
             type: "image/png",
             form_factor: "narrow",
-            label: "KIP Inventory homepage on mobile",
+            label: "Kip Inventory homepage on mobile",
           },
         ],
       },

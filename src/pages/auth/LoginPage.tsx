@@ -82,7 +82,7 @@ export function LoginPage() {
         <Card className="border-primary/20 bg-surface/95">
             <CardHeader>
                 <CardTitle>Sign In</CardTitle>
-                <CardDescription>Continue to the KIP Inventory application.</CardDescription>
+                <CardDescription>Continue to the Kip Inventory application.</CardDescription>
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
