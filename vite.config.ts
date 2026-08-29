@@ -10,21 +10,25 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
+      injectRegister: "auto",
+      devOptions: {
+        enabled: true,
+      },
       includeAssets: ["favicon.svg", "apple-touch-icon.png", "icon-192.png", "icon-512.png"],
       manifest: {
-        name: "KIP Inventory ERP",
+        name: "KIP Inventory",
         short_name: "KIP Inventory",
         description:
-          "ERP and enterprise inventory management app for procurement, warehouse control, stock movement, approvals, and operational visibility.",
+          "Multi-warehouse inventory management for stock tracking, purchase orders, transfers, and approvals.",
         start_url: "/",
         scope: "/",
         display: "standalone",
-        background_color: "#1E3A8A",
+        background_color: "#FAFAFA",
         theme_color: "#4F46E5",
         icons: [
           { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-          { src: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+          { src: "/apple-touch-icon.png", sizes: "180x180", type: "image/png", purpose: "any" },
         ],
       },
       workbox: {
