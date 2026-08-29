@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 export type Theme = "light" | "dark" | "system";
 
 const STORAGE_KEY = "kip-theme";
+const DEFAULT_THEME: Theme = "system";
+const VALID_THEMES: Theme[] = ["light", "dark", "system"];
 
 function getSystemTheme(): "light" | "dark" {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -10,15 +12,24 @@ function getSystemTheme(): "light" | "dark" {
     : "light";
 }
 
+function readStoredTheme(): Theme {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored && VALID_THEMES.includes(stored as Theme)) {
+    return stored as Theme;
+  }
+
+  localStorage.setItem(STORAGE_KEY, DEFAULT_THEME);
+  return DEFAULT_THEME;
+}
+
 function applyTheme(theme: Theme) {
   const resolved = theme === "system" ? getSystemTheme() : theme;
   document.documentElement.classList.toggle("dark", resolved === "dark");
+  document.documentElement.style.colorScheme = resolved;
 }
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(
-    () => (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? "system",
-  );
+  const [theme, setThemeState] = useState<Theme>(readStoredTheme);
 
   useEffect(() => {
     applyTheme(theme);
