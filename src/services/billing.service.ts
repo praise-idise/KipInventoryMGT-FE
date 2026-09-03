@@ -56,3 +56,7 @@ export async function subscribeToPlan(tier: PlanItem["tier"]) {
 export async function cancelSubscription() {
   return apiClient.post<null>("/Billing/cancel", {});
 }
+
+export async function verifyPayment(reference: string) {
+  return apiClient.post<null>("/Billing/verify", { reference });
+}

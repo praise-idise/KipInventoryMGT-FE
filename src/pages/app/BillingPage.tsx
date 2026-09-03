@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearch } from '@tanstack/react-router'
 import { getApiErrorMessage } from '@/api/types'
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, toast, useConfirm } from '@/components/ui'
 import { getStatusBadgeClassName } from '@/lib/status-badge'
@@ -11,6 +12,7 @@ import {
     fetchBillingCurrent,
     fetchPlans,
     subscribeToPlan,
+    verifyPayment,
     type BillingCurrent,
     type PlanItem,
 } from '@/services/billing.service'
@@ -54,6 +56,33 @@ export function BillingPage() {
     const isAdmin = user?.roles?.includes(APP_ROLES.ADMIN) ?? false
     const queryClient = useQueryClient()
     const { confirm, dialog: confirmDialog } = useConfirm()
+    const search = useSearch({ strict: false }) as { reference?: string; trxref?: string }
+    const verifyStarted = useRef(false)
+    const [verifyingPayment, setVerifyingPayment] = useState(false)
+
+    useEffect(() => {
+        const reference = search.reference ?? search.trxref
+        if (!reference || !isAdmin || verifyStarted.current) return
+
+        verifyStarted.current = true
+        setVerifyingPayment(true)
+
+        void (async () => {
+            try {
+                const response = await verifyPayment(reference)
+                await queryClient.invalidateQueries({ queryKey: ['billing'] })
+                toast.success(response.message || 'Payment confirmed. Your subscription is active.')
+            } catch (error) {
+                toast.error(getApiErrorMessage(error, 'Unable to confirm your payment yet.'))
+            } finally {
+                setVerifyingPayment(false)
+                const url = new URL(window.location.href)
+                url.searchParams.delete('reference')
+                url.searchParams.delete('trxref')
+                window.history.replaceState({}, '', url.pathname + url.search)
+            }
+        })()
+    }, [isAdmin, queryClient, search.reference, search.trxref])
 
     const currentQuery = useQuery({
         queryKey: ['billing', 'current'],
@@ -122,6 +151,10 @@ export function BillingPage() {
     return (
         <main className="space-y-6">
             <h1 className="text-2xl font-bold tracking-tight">Billing</h1>
+
+            {verifyingPayment && (
+                <p className="text-sm text-muted-foreground">Confirming your payment...</p>
+            )}
 
             {confirmDialog}
 
