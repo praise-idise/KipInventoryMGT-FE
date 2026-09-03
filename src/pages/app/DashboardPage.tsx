@@ -1,13 +1,16 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { AlertTriangle, BarChart3, Download, Package, Truck, Warehouse } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, toast } from '@/components/ui'
 import { APP_ROLES } from '@/auth/roles'
 import { useAuth } from '@/hooks/use-auth'
 import { fetchCustomers } from '@/services/customers.service'
 import { fetchProducts } from '@/services/products.service'
 import { fetchSuppliers } from '@/services/suppliers.service'
 import { fetchWarehouses } from '@/services/warehouses.service'
+import { downloadReport, fetchLowStockReport, fetchMovementReport, fetchSupplierPerformance, fetchWarehouseValuation } from '@/services/reports.service'
 
 type DashboardMetric = {
     label: string
@@ -67,6 +70,23 @@ function buildMetrics(stats: DashboardStats): DashboardMetric[] {
     ]
 }
 
+const naira = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 })
+const number = new Intl.NumberFormat('en-NG')
+
+async function saveDashboardReport(report: 'valuation' | 'low-stock', format: 'csv' | 'pdf') {
+    try {
+        const blob = await downloadReport(report, format)
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${report}.${format}`
+        link.click()
+        URL.revokeObjectURL(url)
+    } catch {
+        toast.error('Unable to export this report.')
+    }
+}
+
 export function DashboardPage() {
     const { user } = useAuth()
     const roles = user?.roles ?? []
@@ -93,6 +113,14 @@ export function DashboardPage() {
 
     const metrics = useMemo(() => buildMetrics(dashboardQuery.data ?? { products: 0, warehouses: 0, suppliers: 0, customers: 0 }), [dashboardQuery.data])
     const maxValue = Math.max(1, ...metrics.map((metric) => metric.value))
+    const valuationQuery = useQuery({ queryKey: ['dashboard', 'valuation'], queryFn: () => fetchWarehouseValuation() })
+    const lowStockQuery = useQuery({ queryKey: ['dashboard', 'low-stock'], queryFn: () => fetchLowStockReport() })
+    const movementQuery = useQuery({ queryKey: ['dashboard', 'movements'], queryFn: () => fetchMovementReport({ pageNumber: 1, pageSize: 8 }) })
+    const supplierQuery = useQuery({ queryKey: ['dashboard', 'suppliers'], queryFn: () => fetchSupplierPerformance({}) })
+    const valuation = valuationQuery.data ?? []
+    const lowStock = lowStockQuery.data ?? []
+    const movements = movementQuery.data?.data ?? []
+    const suppliers = supplierQuery.data ?? []
 
     const focusCards = isAdmin
         ? [
@@ -251,6 +279,25 @@ export function DashboardPage() {
                         ))}
                     </CardContent>
                 </Card>
+            </section>
+
+            <section className="grid gap-4 md:grid-cols-3">
+                <Card className="bg-surface/95">
+                    <CardHeader><CardDescription>Total stock value</CardDescription><CardTitle>{naira.format(valuation.reduce((sum, item) => sum + item.inventoryValue, 0))}</CardTitle></CardHeader>
+                    <CardContent className="flex items-center justify-between gap-3 text-sm text-muted-foreground"><span>{number.format(valuation.reduce((sum, item) => sum + item.quantityOnHand, 0))} units on hand</span><div className="flex gap-1"><Button variant="ghost" size="icon" title="Export stock valuation as CSV" onClick={() => void saveDashboardReport('valuation', 'csv')}><Download className="size-4" /></Button><Button variant="ghost" size="icon" title="Export stock valuation as PDF" onClick={() => void saveDashboardReport('valuation', 'pdf')}><Download className="size-4" /></Button></div></CardContent>
+                </Card>
+                <Card className="bg-surface/95"><CardHeader><CardDescription>Low-stock lines</CardDescription><CardTitle>{number.format(lowStock.length)}</CardTitle></CardHeader><CardContent className="flex items-center justify-between gap-3 text-sm text-muted-foreground"><span>At or below reorder threshold</span><div className="flex gap-1"><Button variant="ghost" size="icon" title="Export low-stock register as CSV" onClick={() => void saveDashboardReport('low-stock', 'csv')}><Download className="size-4" /></Button><Button variant="ghost" size="icon" title="Export low-stock register as PDF" onClick={() => void saveDashboardReport('low-stock', 'pdf')}><Download className="size-4" /></Button></div></CardContent></Card>
+                <Card className="bg-surface/95"><CardHeader><CardDescription>Supplier fulfilment</CardDescription><CardTitle>{suppliers.length ? `${Math.round(suppliers.reduce((sum, item) => sum + item.fulfilmentRate, 0) / suppliers.length)}%` : '—'}</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">Average received versus ordered quantity</CardContent></Card>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
+                <Card className="bg-surface/95"><CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="size-5 text-primary" /> Stock movement activity</CardTitle><CardDescription>Recent movement value by operation.</CardDescription></CardHeader><CardContent className="h-64">{movementQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading movement activity...</p> : movements.length === 0 ? <p className="text-sm text-muted-foreground">No stock movements found.</p> : <ResponsiveContainer width="100%" height="100%"><BarChart data={movements.slice().reverse()}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="movementType" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} /><YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} /><Tooltip formatter={(value) => naira.format(Number(value))} /><Bar dataKey="totalCost" fill="var(--color-primary)" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>}</CardContent></Card>
+                <Card className="bg-surface/95"><CardHeader><CardTitle className="flex items-center gap-2"><AlertTriangle className="size-5 text-warning" /> Stock needing attention</CardTitle><CardDescription>Low-stock products across your warehouses.</CardDescription></CardHeader><CardContent>{lowStockQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading low-stock items...</p> : lowStock.length === 0 ? <p className="text-sm text-muted-foreground">No low-stock items found.</p> : <div className="space-y-3">{lowStock.slice(0, 8).map((item) => <div key={`${item.warehouseId}-${item.productId}`} className="flex items-center justify-between border-b border-border/60 pb-3 last:border-0"><div className="min-w-0"><p className="truncate font-medium">{item.productName}</p><p className="text-xs text-muted-foreground">{item.sku} · {item.warehouseName}</p></div><div className="ml-4 flex shrink-0 items-center gap-2 text-sm"><Package className="size-4 text-muted-foreground" /><span>{number.format(item.availableQuantity)} / {number.format(item.reorderThreshold)}</span></div></div>)}</div>}</CardContent></Card>
+            </section>
+
+            <section className="grid gap-4 md:grid-cols-2">
+                <Card className="bg-surface/95"><CardHeader><CardTitle className="flex items-center gap-2"><Warehouse className="size-5 text-primary" /> Warehouse valuation</CardTitle><CardDescription>Current weighted-average stock value by location.</CardDescription></CardHeader><CardContent><div className="space-y-3">{valuation.map((item) => <div key={item.warehouseId} className="flex items-center justify-between border-b border-border/60 pb-3 last:border-0"><div><p className="font-medium">{item.warehouseName}</p><p className="text-xs text-muted-foreground">{number.format(item.quantityOnHand)} units · {number.format(item.productCount)} products</p></div><p className="font-semibold">{naira.format(item.inventoryValue)}</p></div>)}</div></CardContent></Card>
+                <Card className="bg-surface/95"><CardHeader><CardTitle className="flex items-center gap-2"><Truck className="size-5 text-primary" /> Supplier performance</CardTitle><CardDescription>Supplier fulfilment and observed receipt lead time.</CardDescription></CardHeader><CardContent><div className="space-y-3">{suppliers.slice(0, 8).map((supplier) => <div key={supplier.supplierId} className="flex items-center justify-between border-b border-border/60 pb-3 last:border-0"><div><p className="font-medium">{supplier.supplierName}</p><p className="text-xs text-muted-foreground">{supplier.purchaseOrderCount} purchase orders · {supplier.averageReceiptLeadTimeDays == null ? 'No receipt lead time' : `${supplier.averageReceiptLeadTimeDays} days average`}</p></div><p className="font-semibold">{supplier.fulfilmentRate}%</p></div>)}</div></CardContent></Card>
             </section>
         </main>
     )

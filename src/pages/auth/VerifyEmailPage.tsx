@@ -18,18 +18,24 @@ export function VerifyEmailPage() {
     const hasRequestedVerification = useRef(false)
     const [status, setStatus] = useState<VerifyStatus>('loading')
     const [message, setMessage] = useState<string | null>(null)
+    const [isErrorMessage, setIsErrorMessage] = useState(false)
+    const [canResend, setCanResend] = useState(false)
     const { remainingSeconds, isCoolingDown, applyCooldown } = useResendVerificationCooldown(email)
 
     useEffect(() => {
         if (email && !token) {
             setStatus('ready-to-resend')
             setMessage(null)
+            setIsErrorMessage(false)
+            setCanResend(true)
             return
         }
 
         if (!email || !token) {
             setStatus('error')
             setMessage('Invalid or missing verification link.')
+            setIsErrorMessage(true)
+            setCanResend(false)
             return
         }
 
@@ -44,6 +50,7 @@ export function VerifyEmailPage() {
                 const data = response.data
                 if (!data?.token || !data.userId || !data.email) {
                     setMessage(response.message || 'Email verified. Please sign in to continue.')
+                    setIsErrorMessage(false)
                     setStatus('success')
                     return
                 }
@@ -56,16 +63,22 @@ export function VerifyEmailPage() {
                 if (isApiError(error)) {
                     if (error.message.toLowerCase().includes('already verified')) {
                         setMessage('Email is already verified. Please sign in to continue.')
+                        setIsErrorMessage(false)
+                        setCanResend(false)
                         setStatus('success')
                         return
                     }
 
                     setMessage(error.message || 'Unable to verify email.')
+                    setIsErrorMessage(true)
+                    setCanResend(Boolean(email) && error.statusCode < 500)
                     setStatus(email ? 'ready-to-resend' : 'error')
                     return
                 }
 
                 setMessage('Unexpected error occurred while verifying email.')
+                setIsErrorMessage(true)
+                setCanResend(false)
                 setStatus(email ? 'ready-to-resend' : 'error')
             })
     }, [email, establishSession, navigate, token])
@@ -81,8 +94,12 @@ export function VerifyEmailPage() {
             const response = await resendVerification({ email })
             applyCooldown(response.data, email)
             setMessage(response.message || 'If the email exists and is unverified, a new link has been sent.')
+            setIsErrorMessage(false)
+            setCanResend(true)
         } catch (error) {
             setMessage(isApiError(error) ? error.message || 'Unable to resend verification email.' : 'Unable to resend verification email.')
+            setIsErrorMessage(true)
+            setCanResend(isApiError(error) && error.statusCode < 500)
         } finally {
             setStatus('ready-to-resend')
         }
@@ -129,23 +146,23 @@ export function VerifyEmailPage() {
     const isResendMode = status === 'ready-to-resend' || status === 'resending'
 
     return (
-        <Card className="border-primary/20 bg-surface/95 shadow-xl shadow-primary/5">
+        <Card className="border-destructive/25 bg-surface/95 shadow-xl shadow-destructive/5">
             <CardHeader>
                 <div className="mb-2 flex justify-center">
                     <AlertCircle className="size-12 text-destructive" />
                 </div>
-                <CardTitle>{isResendMode ? 'Resend verification email' : 'Verification failed'}</CardTitle>
-                <CardDescription>
-                    {isResendMode
-                        ? 'We can send a fresh verification link to your inbox.'
-                        : 'We could not verify your account with this link.'}
-                </CardDescription>
+                {message && <p className={`text-sm ${isErrorMessage ? 'text-destructive' : 'text-muted-foreground'}`}>{message}</p>}
+                <CardTitle>{canResend ? 'Resend verification email' : 'Verification failed'}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                    {message ?? (isResendMode ? 'Your previous link may have expired. Request a new one below.' : 'The verification link may be invalid or expired.')}
-                </p>
-                {email && isResendMode && (
+                <CardDescription>
+                    {canResend && isResendMode
+                        ? email
+                            ? `We can send a fresh verification link to ${email}`
+                            : 'We can send a fresh verification link to your inbox.'
+                        : 'We could not verify your account with this link.'}
+                </CardDescription>
+                {email && canResend && isResendMode && (
                     <Button
                         variant="outline"
                         className="w-full"
@@ -156,15 +173,9 @@ export function VerifyEmailPage() {
                             ? 'Sending...'
                             : isCoolingDown
                                 ? `Resend in ${formatCooldown(remainingSeconds)}`
-                                : `Resend link to ${email}`}
+                                : 'Resend'}
                     </Button>
                 )}
-                <Link
-                    to="/auth/resend-verification"
-                    className="inline-flex h-10 w-full items-center justify-center rounded-md border border-transparent px-4 text-sm font-medium text-primary transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                    Open resend page
-                </Link>
                 <Link to="/auth/login" className="hidden text-center text-sm text-muted-foreground hover:text-foreground hover:underline md:block">
                     Back to login
                 </Link>

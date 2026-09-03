@@ -36,7 +36,6 @@ import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { LandingPage } from "@/pages/LandingPage";
 import { ResetPasswordPage } from "@/pages/auth/ResetPasswordPage";
-import { ResendVerificationPage } from "@/pages/auth/ResendVerificationPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { VerifyEmailPage } from "@/pages/auth/VerifyEmailPage";
 import { AcceptInvitationPage } from "@/pages/auth/AcceptInvitationPage";
@@ -114,12 +113,6 @@ const resetPasswordAliasRoute = createRoute({
   beforeLoad: ({ search }) => {
     throw redirect({ to: "/auth/reset-password", search });
   },
-});
-
-const resendVerificationRoute = createRoute({
-  getParentRoute: () => authLayoutRoute,
-  path: "/resend-verification",
-  component: ResendVerificationPage,
 });
 
 const acceptInvitationRoute = createRoute({
@@ -214,7 +207,6 @@ const customerDetailRoute = createRoute({
   path: "/customers/$customerId",
   component: CustomerDetailPage,
 });
-
 
 const purchaseOrdersRoute = createRoute({
   getParentRoute: () => appShellRoute,
@@ -324,7 +316,6 @@ const billingRoute = createRoute({
   component: BillingPage,
 });
 
-
 const routeTree = rootRoute.addChildren([
   landingRoute,
   resetPasswordAliasRoute,
@@ -336,7 +327,6 @@ const routeTree = rootRoute.addChildren([
     checkEmailRoute,
     forgotPasswordRoute,
     resetPasswordRoute,
-    resendVerificationRoute,
     verifyEmailRoute,
     acceptInvitationRoute,
   ]),
@@ -365,7 +355,6 @@ const routeTree = rootRoute.addChildren([
     usersRoute,
     billingRoute,
     settingsRoute,
-
   ]),
 ]);
 

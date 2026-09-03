@@ -168,6 +168,22 @@ async function requestByUrlWithRetry<T>(
   return parseResponse<T>(res);
 }
 
+async function requestFileWithRetry(url: string, retryOn401 = true): Promise<Blob> {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: buildHeaders(),
+    credentials: "include",
+  });
+
+  if (res.status === 401 && retryOn401) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) return requestFileWithRetry(url, false);
+  }
+
+  if (!res.ok) throw (await parseResponse<ApiError>(res));
+  return res.blob();
+}
+
 export const apiClient = {
   async get<T>(path: string): Promise<ApiResponse<T>> {
     return requestWithRetry<ApiResponse<T>>(path, {
@@ -196,6 +212,10 @@ export const apiClient = {
     );
 
     return normalizePaginatedResponse(response);
+  },
+
+  async download(path: string): Promise<Blob> {
+    return requestFileWithRetry(`${API_BASE_URL}${path}`);
   },
 
   async post<T>(
